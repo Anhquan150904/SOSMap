@@ -1,0 +1,6 @@
+@SOS.WebApi_HostAddress = http://localhost:5075
+
+GET {{SOS.WebApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
