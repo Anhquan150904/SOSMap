@@ -1,5 +1,5 @@
 ﻿using NetTopologySuite.Geometries;
-namespace SOS.Domain.Entities
+namespace Sos.Domain.Entities
 {
     // người dùng
     public class User
