@@ -20,7 +20,7 @@ namespace Sos.Infrastructure.Persistence
             // users
             modelBuilder.Entity<User>(b =>
             {
-                b.ToTable("users");
+                b.ToTable("Users");
                 b.HasKey(x => x.Id);
                 b.HasIndex(x => x.Phone).IsUnique();
                 b.Property(x => x.LastKnownLocation).HasColumnType("geography");
@@ -29,7 +29,7 @@ namespace Sos.Infrastructure.Persistence
             // sos_reports
             modelBuilder.Entity<SOSReport>(b =>
             {
-                b.ToTable("sos_reports");
+                b.ToTable("SOSReports");
                 b.HasKey(x => x.Id);
 
                 // SQL Server: dùng geography
@@ -42,14 +42,14 @@ namespace Sos.Infrastructure.Persistence
 
             modelBuilder.Entity<RescueTask>(b =>
             {
-                b.ToTable("rescue_tasks");
+                b.ToTable("RescueTasks");
                 b.HasKey(x => x.Id);
                 b.HasIndex(x => x.ReportId).IsUnique();
             });
 
             modelBuilder.Entity<SafetyPoint>(b =>
             {
-                b.ToTable("safety_points");
+                b.ToTable("SafetyPoints");
                 b.HasKey(x => x.Id);
                 b.Property(x => x.Location).HasColumnType("geography").IsRequired();
             });
