@@ -6,6 +6,7 @@ using Sos.Infrastructure.Persistence;
 using Sos.Infrastructure.Repositories;
 using Sos.WebApi.Hubs;
 using SOS.Domain.Interfaces;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +24,17 @@ builder.Services.AddScoped<ISafetyPointRepository, SafetyPointRepository>();
 // 3. Services
 builder.Services.AddScoped<ReportService>();
 
+var redisConn = builder.Configuration.GetValue<string>("Redis") ?? "localhost:6379";
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    // Đảm bảo Redis server đang chạy
+    var configuration = ConfigurationOptions.Parse(redisConn);
+    configuration.AbortOnConnectFail = false;
+    return ConnectionMultiplexer.Connect(configuration);
+});
+
+builder.Services.AddSingleton<OtpService>();
 // 4. Notification Service (duy nhất đang dùng trong TestHub)
 builder.Services.AddScoped<INotificationService, SignalRNotificationService>();
 
