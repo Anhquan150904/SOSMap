@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOS - SignalR Test Realtime</title>
+    <style>
+        body { font-family: Segoe UI; margin: 40px; background: #f4f4f4; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #d32f2f; }
+        button { padding: 12px 20px; margin: 10px; font-size: 16px; border: none; border-radius: 6px; cursor: pointer; }
+        #joinVolunteer { background: #4caf50; color: white; }
+        #joinAdmin { background: #1976d2; color: white; }
+        #sendVolunteer { background: #ff9800; color: white; }
+        #sendAdmin { background: #9c27b0; color: white; }
+        #messages { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 15px; background: #fafafa; margin-top: 20px; border-radius: 8px; }
+        .msg { padding: 10px; margin: 8px 0; border-radius: 8px; }
+        .server { background: #e3f2fd; color: #1565c0; }
+        .report { background: #fff3e0; color: #ef6c00; font-weight: bold; }
+        .task { background: #f3e5f5; color: #7b1fa2; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SOS SignalR Realtime Test</h1>
+        <p>Trạng thái: <span id="status" style="color:red;font-weight:bold">Đang kết nối...</span></p>
+
+        <div>
+            <button id="joinVolunteer">Join nhóm VOLUNTEER</button>
+            <button id="joinAdmin">Join nhóm ADMIN</button>
+        </div>
+
+        <div>
+            <button id="sendVolunteer">Gửi báo cáo mới → Volunteer</button>
+            <button id="sendAdmin">Gửi nhiệm vụ được chấp nhận → Admin</button>
+        </div>
+
+        <h3>Tin nhắn realtime:</h3>
+        <div id="messages"></div>
+    </div>
+
+    <!-- ĐÚNG CDN + ĐÚNG CÁCH DÙNG CHO 7.0.15 -->
+    <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
+
+    <script>
+        // QUAN TRỌNG: Phải dùng signalR.Default ở bản 7+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("http://localhost:5075/testhub", { withCredentials: true })
+            .withAutomaticReconnect([0, 2000, 10000])
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        function log(msg, type = "server") {
+            const div = document.createElement("div");
+            div.className = "msg " + type;
+            div.innerHTML = `<small>${new Date().toLocaleTimeString()}</small> ${msg}`;
+            document.getElementById("messages").appendChild(div);
+            div.scrollIntoView({ behavior: "smooth" });
+        }
+
+        connection.on("ReportCreated", payload => log(`REPORT MỚI: ${payload.Message || JSON.stringify(payload)}`, "report"));
+        connection.on("TaskAccepted", payload => log(`NHIỆM VỤ ĐƯỢC CHẤP NHẬN: ${payload.Message || JSON.stringify(payload)}`, "task"));
+        connection.on("ServerMessage", msg => log(msg, "server"));
+
+        connection.start()
+            .then(() => {
+                document.getElementById("status").textContent = "ĐÃ KẾT NỐI THÀNH CÔNG!";
+                document.getElementById("status").style.color = "green";
+                log("Kết nối SignalR thành công!");
+            })
+            .catch(err => {
+                console.error(err);
+                log("Lỗi kết nối: " + err.toString());
+                document.getElementById("status").textContent = "LỖI KẾT NỐI";
+            });
+
+        document.getElementById("joinVolunteer").onclick = () => connection.invoke("JoinGroup", "volunteer");
+        document.getElementById("joinAdmin").onclick = () => connection.invoke("JoinGroup", "admin");
+        document.getElementById("sendVolunteer").onclick = () => {
+            connection.invoke("SendTestNotification", "volunteer", "Có báo cáo khẩn cấp tại Quận 1 - cần cứu hộ ngay!");
+        };
+        document.getElementById("sendAdmin").onclick = () => {
+            connection.invoke("SendTestNotification", "admin", "Nhiệm vụ cứu hộ #1234 đã được tình nguyện viên chấp nhận");
+        };
+    </script>
+</body>
+</html>
