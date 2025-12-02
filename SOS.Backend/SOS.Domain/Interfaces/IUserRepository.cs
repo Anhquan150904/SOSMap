@@ -1,5 +1,4 @@
 ﻿using Sos.Domain.Entities;
-using SOS.Domain.Entities;
 
 namespace Sos.Domain.Interfaces
 {
