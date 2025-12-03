@@ -7,6 +7,7 @@ using Sos.Infrastructure.Repositories;
 using Sos.WebApi.Hubs;
 using SOS.Domain.Interfaces;
 using StackExchange.Redis;
+using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,7 +40,12 @@ builder.Services.AddSingleton<OtpService>();
 builder.Services.AddScoped<INotificationService, SignalRNotificationService>();
 
 // 5. SignalR
-builder.Services.AddSignalR();
+// Update the SignalR configuration to resolve the error
+builder.Services.AddSignalR()
+    .AddStackExchangeRedis(redisConn, options =>
+    {
+        options.Configuration.ChannelPrefix = new RedisChannel("SOS_SignalR:", RedisChannel.PatternMode.Literal);
+    });
 
 // 6. CORS (cho Live Server port 5500)
 builder.Services.AddCors(options =>
