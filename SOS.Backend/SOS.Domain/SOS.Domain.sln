@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36127.28 d17.14
+VisualStudioVersion = 17.14.36127.28
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SOS.Domain", "SOS.Domain.csproj", "{59C8777F-D67B-4C28-A148-459C5550866E}"
 EndProject
@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SOS.Application", "..\SOS.A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SOS.Infrastructure", "..\SOS.Infrastructure\SOS.Infrastructure.csproj", "{C2E6C830-21F2-433E-9B87-87FBA632849F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SOS.WebApi", "..\SOS.WebApi\SOS.WebApi.csproj", "{2CC4367D-6733-4DB2-98F0-6918B45B20DE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SOS.Presentation", "..\SOS.WebApi\SOS.Presentation.csproj", "{2CC4367D-6733-4DB2-98F0-6918B45B20DE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -2,6 +2,7 @@
 using Sos.Application.Services;
 using Sos.Domain.Interfaces;
 using SOS.Domain.Interfaces;
+using Sos.Application.DTOs.ReportSosDto;
 
 namespace Sos.WebApi.Controllers
 {
@@ -100,9 +101,5 @@ namespace Sos.WebApi.Controllers
             var list = await _service.GetNearbySafetyPointsAsync(lat, lng, radiusMeters);
             return Ok(list);
         }
-
-        // DTO
-        public record CreateReportRequest(string Phone, string? Name, double Lat, double Lng, string? Address, string? Details, string Level = "critical");
-        public record TaskActionRequest(Guid VolunteerId);
     }
 }
