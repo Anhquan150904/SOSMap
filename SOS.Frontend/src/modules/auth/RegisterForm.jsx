@@ -4,11 +4,10 @@ import Modal from '../../components/Modal';
 
 const RegisterForm = ({ phoneNumber, onClose, onRegister }) => {
   const [fullName, setFullName] = useState('');
-  const [dob, setDob] = useState('');
 
   const handleSubmit = () => {
-    if (!fullName || !dob) return alert("Vui lòng nhập đủ thông tin");
-    onRegister({ fullName, dob, phoneNumber });
+    if (!fullName) return alert("Vui lòng nhập đủ thông tin");
+    onRegister({ fullName, phoneNumber });
   };
 
   return (
@@ -27,15 +26,6 @@ const RegisterForm = ({ phoneNumber, onClose, onRegister }) => {
           placeholder="Nguyễn Văn A"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
-        />
-      </div>
-
-      <div className="form-group">
-        <label>Ngày sinh</label>
-        <input
-          type="date"
-          value={dob}
-          onChange={(e) => setDob(e.target.value)}
         />
       </div>
 
