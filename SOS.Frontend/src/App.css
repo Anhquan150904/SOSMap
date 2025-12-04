@@ -1,42 +1,245 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+:root {
+  /* Bảng màu hiện đại */
+  --primary-color: #4f46e5; /* Xanh Indigo */
+  --primary-hover: #4338ca;
+  --danger-color: #ef4444; /* Đỏ cảnh báo */
+  --danger-hover: #dc2626;
+  --bg-color: #f3f4f6;
+  --text-main: #1f2937;
+  --text-secondary: #6b7280;
+  --white: #ffffff;
+  --border-radius: 12px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Reset margin/padding mặc định của trình duyệt */
+body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden; /* Chặn thanh cuộn ngang thừa */
+}
+
+/* app-container chỉ là lớp vỏ bao ngoài cùng, cho nó full 100% */
+.app-container {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  display: block; /* Quan trọng: Đổi từ flex sang block để nó tự tràn dòng */
+}
+
+/* --- Màn hình chọn Role --- */
+.role-selection {
+  text-align: center;
+  max-width: 800px;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.role-selection h1 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  color: #111827;
+}
+
+.role-selection p {
+  color: var(--text-secondary);
+  margin-bottom: 40px;
+}
+
+.role-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 30px;
+}
+
+/* Card Style */
+.card {
+  background: var(--white);
+  padding: 40px 30px;
+  border-radius: 20px;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 280px;
+  border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Card riêng cho Người cần cứu (Màu đỏ) */
+.card.rescuee-card:hover {
+  border-color: var(--danger-color);
+}
+.card.rescuee-card h3 { color: var(--danger-color); }
+
+/* Card riêng cho Người cứu hộ (Màu xanh) */
+.card.rescuer-card:hover {
+  border-color: var(--primary-color);
+}
+.card.rescuer-card h3 { color: var(--primary-color); }
+
+.card h3 {
+  font-size: 1.5rem;
+  margin-bottom: 15px;
+  font-weight: 700;
+}
+
+.card p {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* --- Modal Overlay --- */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6); /* Đen mờ đậm hơn */
+  backdrop-filter: blur(4px); /* Hiệu ứng kính mờ phía sau */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* --- Modal Content --- */
+.modal-content {
+  background: var(--white);
+  padding: 40px;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-content h2 {
+  font-size: 1.8rem;
+  margin-bottom: 10px;
+  color: #111827;
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.modal-content > p {
+  text-align: center;
+  margin-bottom: 30px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
 }
 
-@keyframes logo-spin {
+/* Nút tắt X */
+.close-btn {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  font-size: 28px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  transition: color 0.2s;
+  line-height: 1;
+}
+
+.close-btn:hover {
+  color: #374151;
+}
+
+/* --- Form Styles --- */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.2s;
+  background-color: #f9fafb;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); /* Glow effect */
+}
+
+.form-group input:read-only {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+/* Buttons */
+.btn-primary {
+  width: 100%;
+  padding: 14px;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.error-msg {
+  display: block;
+  color: var(--danger-color);
+  font-size: 0.85rem;
+  margin-top: 6px;
+}
+
+/* --- Animations --- */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
   from {
-    transform: rotate(0deg);
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
   }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
 }
