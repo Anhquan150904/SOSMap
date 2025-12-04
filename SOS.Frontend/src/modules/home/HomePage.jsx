@@ -7,10 +7,10 @@ const HomePage = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
     const [showDropdown, setShowDropdown] = useState(false);
-
+    console.log('user on HomePage:', user);
     // Khi trang load, lấy thông tin user từ localStorage
     useEffect(() => {
-        const storedUser = localStorage.getItem('currentUser');
+        const storedUser = localStorage.getItem('user');
         if (storedUser) {
         setUser(JSON.parse(storedUser));
         }
