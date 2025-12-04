@@ -1,0 +1,279 @@
+/* src/modules/home/HomePage.css */
+
+/* Reset cơ bản cho HomePage */
+.homepage {
+    width: 100%;
+    min-height: 100vh;
+    background-color: #fff;
+    color: #333;
+    font-family: 'Inter', sans-serif;
+}
+
+/* HEADER */
+.site-header {
+    display: flex;              /* Kích hoạt Flexbox */
+    justify-content: space-between; /* Đẩy Logo sang trái, Menu sang phải */
+    align-items: center;        /* Căn giữa theo chiều dọc */
+    padding: 15px 40px;
+    background: white;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    height: 70px; /* Cố định chiều cao header để tránh bị nhảy layout */
+}
+
+.logo-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.location-badge {
+    border: 1px solid #28a745;
+    color: #28a745;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.main-nav {
+    display: flex;          /* <--- QUAN TRỌNG: Biến nav thành flex container */
+    align-items: center;    /* Căn giữa dọc các link và tên user */
+    gap: 30px;              /* Khoảng cách giữa các mục menu */
+}
+
+.main-nav a {
+    text-decoration: none;
+    color: #333;
+    font-weight: 500;
+    white-space: nowrap;    /* Không cho chữ bị ngắt dòng */
+}
+
+.main-nav a.active {
+    font-weight: bold;
+}
+
+/* USER PROFILE */
+.user-profile {
+    position: relative; /* Quan trọng: để dropdown neo theo thẻ này */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 5px 0; /* Tăng diện tích click */
+}
+
+.user-name {
+    color: #333;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 5px; /* Khoảng cách giữa tên và mũi tên */
+}
+
+.user-name strong {
+    color: #00b09b;
+    font-weight: 700;
+}
+
+/* KHUNG DROPDOWN MENU */
+.dropdown-menu {
+    position: absolute;
+    top: 100%; /* Đẩy xuống ngay dưới đáy của user-profile */
+    right: 0;  /* Căn lề phải thẳng hàng với user-profile */
+    margin-top: 15px; /* Tạo khoảng cách tách biệt một chút */
+    
+    background-color: white;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); /* Bóng đổ đẹp hơn */
+    border-radius: 8px;
+    padding: 5px; /* Padding nhỏ cho khung */
+    min-width: 180px;
+    z-index: 1000;
+    border: 1px solid #f3f4f6;
+    
+    /* Animation hiện ra */
+    animation: fadeInUp 0.2s ease-out;
+}
+
+/* Mũi tên tam giác nhỏ chỉ lên trên */
+.dropdown-menu::before {
+    content: "";
+    position: absolute;
+    top: -6px;
+    right: 10px; /* Vị trí mũi tên */
+    width: 12px; 
+    height: 12px;
+    background: white;
+    transform: rotate(45deg);
+    border-top: 1px solid #f3f4f6;
+    border-left: 1px solid #f3f4f6;
+}
+
+/* ITEM TRONG MENU (NÚT ĐĂNG XUẤT) */
+.dropdown-item {
+    padding: 12px 15px;
+    color: #4b5563;
+    font-weight: 500;
+    font-size: 0.9rem;
+    border-radius: 6px; /* Bo góc nút bên trong */
+    transition: all 0.2s;
+    text-align: left;
+    display: flex; /* Để căn icon nếu sau này thêm icon logout */
+    align-items: center;
+}
+
+/* Hover vào nút Đăng xuất */
+.dropdown-item:hover {
+    background-color: #fee2e2; /* Nền đỏ nhạt */
+    color: #dc2626; /* Chữ đỏ đậm */
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* HERO SECTION - MÀU XANH LÁ */
+.hero-section {
+    background: linear-gradient(135deg, #00b09b, #96c93d); /* Gradient xanh */
+    padding: 80px 20px;
+    text-align: center;
+    color: white;
+}
+
+.hero-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.hero-content h1 {
+    font-size: 3rem;
+    margin-bottom: 20px;
+}
+
+.hero-content p {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 30px;
+    opacity: 0.9;
+}
+
+.btn-hero {
+    background: white;
+    color: #28a745;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+/* TEAM SECTION */
+.team-section {
+    padding: 50px 20px;
+    text-align: center;
+    background-color: #f9fbfd;
+}
+
+.team-section h2 {
+    margin-bottom: 40px;
+    color: #1a202c;
+}
+
+.team-grid {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 30px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.member-card {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    width: 200px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.avatar-circle img {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 15px;
+    border: 3px solid #f0f0f0;
+}
+
+/* FOOTER */
+.site-footer {
+    padding: 60px 20px 20px;
+    text-align: center;
+    background-color: #fff;
+}
+
+.partners-list p {
+    margin: 5px 0;
+    font-weight: 500;
+    color: #555;
+}
+
+.thank-you {
+    margin-top: 50px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.footer-bottom {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    background-color: #1f2937; /* Màu đậm cuối trang giống ảnh */
+    color: #9ca3af;
+    padding: 20px;
+}
+
+/* ... Các code cũ của footer giữ nguyên ... */
+
+.footer-bottom {
+    margin-top: 60px;
+    padding-top: 20px;
+    border-top: 1px solid #374151; /* Đổi màu viền cho tiệp màu nền tối */
+    background-color: #1f2937;
+    color: #9ca3af;
+    padding: 20px;
+    
+    /* Căn giữa nội dung footer */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px; /* Khoảng cách giữa các phần tử */
+}
+
+/* Class style cho nút Ghost ở footer */
+.footer-bottom button {
+    background-color: transparent; /* Quan trọng: Làm nền trong suốt */
+    border: none;                  /* Quan trọng: Bỏ viền nút mặc định */
+    color: #9ca3af;                /* Màu chữ giống màu text footer */
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 5px;
+    transition: color 0.2s ease;
+    font-family: inherit;          /* Giữ font chữ giống web */
+}
+
+/* Hiệu ứng khi di chuột vào */
+.footer-bottom button:hover {
+    color: #ffffff;            /* Chữ sáng lên màu trắng */
+    text-decoration: underline; /* Gạch chân cho giống link */
+}
