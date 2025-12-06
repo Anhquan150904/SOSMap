@@ -8,6 +8,7 @@ import LoginPage from './modules/auth/LoginPage';
 import HomePage from './modules/home/HomePage';
 import RoleSelection from './modules/auth/RoleSelection';
 import MapPage from './modules/map/MapPage';
+import AdminLogin from './modules/auth/AdminLogin';
 
 function App() {
   return (
@@ -24,6 +25,8 @@ function App() {
           <Route path="/role-selection" element={<RoleSelection />} />
           {/* Đường dẫn (/map) sẽ vào trang bản đồ */}
           <Route path="/map" element={<MapPage />} />
+          {/* Đường dẫn (/admin-login) sẽ vào trang đăng nhập Admin */}
+          <Route path="/admin-login" element={<AdminLogin />} />
         </Routes>
       </div>
     </Router>
