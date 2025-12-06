@@ -11,16 +11,20 @@
 
 /* HEADER */
 .site-header {
-    display: flex;              /* Kích hoạt Flexbox */
-    justify-content: space-between; /* Đẩy Logo sang trái, Menu sang phải */
-    align-items: center;        /* Căn giữa theo chiều dọc */
+    display: flex;
+    /* Kích hoạt Flexbox */
+    justify-content: space-between;
+    /* Đẩy Logo sang trái, Menu sang phải */
+    align-items: center;
+    /* Căn giữa theo chiều dọc */
     padding: 15px 40px;
     background: white;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     position: sticky;
     top: 0;
     z-index: 100;
-    height: 70px; /* Cố định chiều cao header để tránh bị nhảy layout */
+    height: 70px;
+    /* Cố định chiều cao header để tránh bị nhảy layout */
 }
 
 .logo-area {
@@ -38,19 +42,69 @@
     border-radius: 20px;
     font-size: 0.9rem;
     cursor: pointer;
+    transition: all 0.3s
 }
 
+.location-badge.bottom {
+    color: white;
+    background: #28a745;
+}
+
+.location-badge.bottom:hover {
+    color: #28a745;
+    background: white;
+}
+
+.location-badge:hover {
+    color: white;
+    background: #28a745;
+}
+
+.box-location {
+    position: relative;
+    margin-left: 20px;
+}
+
+.lst-provinces-drop {
+    position: absolute;
+    top: 30px;
+    left: 0;
+    width: 220px;
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border: 1px solid #ddd;
+    z-index: 5;
+}
+
+.imt-provinces {
+    padding: 10px 15px;
+    cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+    color: #333;
+    transition: all 0.3s;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+
 .main-nav {
-    display: flex;          /* <--- QUAN TRỌNG: Biến nav thành flex container */
-    align-items: center;    /* Căn giữa dọc các link và tên user */
-    gap: 30px;              /* Khoảng cách giữa các mục menu */
+    display: flex;
+    /* <--- QUAN TRỌNG: Biến nav thành flex container */
+    align-items: center;
+    /* Căn giữa dọc các link và tên user */
+    gap: 30px;
+    /* Khoảng cách giữa các mục menu */
 }
 
 .main-nav a {
     text-decoration: none;
     color: #333;
     font-weight: 500;
-    white-space: nowrap;    /* Không cho chữ bị ngắt dòng */
+    white-space: nowrap;
+    /* Không cho chữ bị ngắt dòng */
 }
 
 .main-nav a.active {
@@ -59,11 +113,13 @@
 
 /* USER PROFILE */
 .user-profile {
-    position: relative; /* Quan trọng: để dropdown neo theo thẻ này */
+    position: relative;
+    /* Quan trọng: để dropdown neo theo thẻ này */
     cursor: pointer;
     display: flex;
     align-items: center;
-    padding: 5px 0; /* Tăng diện tích click */
+    padding: 5px 0;
+    /* Tăng diện tích click */
 }
 
 .user-name {
@@ -71,7 +127,8 @@
     font-size: 0.95rem;
     display: flex;
     align-items: center;
-    gap: 5px; /* Khoảng cách giữa tên và mũi tên */
+    gap: 5px;
+    /* Khoảng cách giữa tên và mũi tên */
 }
 
 .user-name strong {
@@ -82,18 +139,23 @@
 /* KHUNG DROPDOWN MENU */
 .dropdown-menu {
     position: absolute;
-    top: 100%; /* Đẩy xuống ngay dưới đáy của user-profile */
-    right: 0;  /* Căn lề phải thẳng hàng với user-profile */
-    margin-top: 15px; /* Tạo khoảng cách tách biệt một chút */
-    
+    top: 100%;
+    /* Đẩy xuống ngay dưới đáy của user-profile */
+    right: 0;
+    /* Căn lề phải thẳng hàng với user-profile */
+    margin-top: 15px;
+    /* Tạo khoảng cách tách biệt một chút */
+
     background-color: white;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); /* Bóng đổ đẹp hơn */
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    /* Bóng đổ đẹp hơn */
     border-radius: 8px;
-    padding: 5px; /* Padding nhỏ cho khung */
+    padding: 5px;
+    /* Padding nhỏ cho khung */
     min-width: 180px;
     z-index: 1000;
     border: 1px solid #f3f4f6;
-    
+
     /* Animation hiện ra */
     animation: fadeInUp 0.2s ease-out;
 }
@@ -103,8 +165,9 @@
     content: "";
     position: absolute;
     top: -6px;
-    right: 10px; /* Vị trí mũi tên */
-    width: 12px; 
+    right: 10px;
+    /* Vị trí mũi tên */
+    width: 12px;
     height: 12px;
     background: white;
     transform: rotate(45deg);
@@ -118,27 +181,39 @@
     color: #4b5563;
     font-weight: 500;
     font-size: 0.9rem;
-    border-radius: 6px; /* Bo góc nút bên trong */
+    border-radius: 6px;
+    /* Bo góc nút bên trong */
     transition: all 0.2s;
     text-align: left;
-    display: flex; /* Để căn icon nếu sau này thêm icon logout */
+    display: flex;
+    /* Để căn icon nếu sau này thêm icon logout */
     align-items: center;
 }
 
 /* Hover vào nút Đăng xuất */
 .dropdown-item:hover {
-    background-color: #fee2e2; /* Nền đỏ nhạt */
-    color: #dc2626; /* Chữ đỏ đậm */
+    background-color: #fee2e2;
+    /* Nền đỏ nhạt */
+    color: #dc2626;
+    /* Chữ đỏ đậm */
 }
 
 @keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* HERO SECTION - MÀU XANH LÁ */
 .hero-section {
-    background: linear-gradient(135deg, #00b09b, #96c93d); /* Gradient xanh */
+    background: linear-gradient(135deg, #00b09b, #96c93d);
+    /* Gradient xanh */
     padding: 80px 20px;
     text-align: center;
     color: white;
@@ -170,7 +245,7 @@
     font-weight: bold;
     font-size: 1rem;
     cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
 /* TEAM SECTION */
@@ -199,7 +274,7 @@
     padding: 30px;
     border-radius: 15px;
     width: 200px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -238,7 +313,8 @@
     margin-top: 60px;
     padding-top: 20px;
     border-top: 1px solid #eee;
-    background-color: #1f2937; /* Màu đậm cuối trang giống ảnh */
+    background-color: #1f2937;
+    /* Màu đậm cuối trang giống ảnh */
     color: #9ca3af;
     padding: 20px;
 }
@@ -248,32 +324,88 @@
 .footer-bottom {
     margin-top: 60px;
     padding-top: 20px;
-    border-top: 1px solid #374151; /* Đổi màu viền cho tiệp màu nền tối */
+    border-top: 1px solid #374151;
+    /* Đổi màu viền cho tiệp màu nền tối */
     background-color: #1f2937;
     color: #9ca3af;
     padding: 20px;
-    
+
     /* Căn giữa nội dung footer */
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 10px; /* Khoảng cách giữa các phần tử */
+    gap: 10px;
+    /* Khoảng cách giữa các phần tử */
 }
 
 /* Class style cho nút Ghost ở footer */
 .footer-bottom button {
-    background-color: transparent; /* Quan trọng: Làm nền trong suốt */
-    border: none;                  /* Quan trọng: Bỏ viền nút mặc định */
-    color: #9ca3af;                /* Màu chữ giống màu text footer */
+    background-color: transparent;
+    /* Quan trọng: Làm nền trong suốt */
+    border: none;
+    /* Quan trọng: Bỏ viền nút mặc định */
+    color: #9ca3af;
+    /* Màu chữ giống màu text footer */
     cursor: pointer;
     font-size: 1rem;
     padding: 0 5px;
     transition: color 0.2s ease;
-    font-family: inherit;          /* Giữ font chữ giống web */
+    font-family: inherit;
+    /* Giữ font chữ giống web */
 }
 
 /* Hiệu ứng khi di chuột vào */
 .footer-bottom button:hover {
-    color: #ffffff;            /* Chữ sáng lên màu trắng */
-    text-decoration: underline; /* Gạch chân cho giống link */
+    color: #ffffff;
+    /* Chữ sáng lên màu trắng */
+    text-decoration: underline;
+    /* Gạch chân cho giống link */
+}
+
+
+.loading-overlay {
+    position: fixed;
+    /* Trùm lên toàn bộ màn hình */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+    /* Màu đen mờ */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    /* Luôn nổi lên trên cùng */
+    flex-direction: column;
+}
+
+/* Vòng xoay */
+.spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    /* Màu viền xám nhạt */
+    border-top: 5px solid #28a745;
+    /* Màu viền xoay xanh dương */
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-text {
+    margin-top: 15px;
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+/* Hiệu ứng xoay */
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
