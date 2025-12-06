@@ -37,7 +37,7 @@ const HomePage = () => {
             
             <nav className="main-nav">
             <a href="#" className="active">Trang chủ</a>
-            <a href="#">Bản đồ</a>
+            <a onClick={() => navigate('/map')}>Bản đồ</a>
             <a href="#">Liên hệ</a>
 
             {/* KHU VỰC TÀI KHOẢN (Thêm vào cuối nav) */}
@@ -70,7 +70,7 @@ const HomePage = () => {
                 cứu nạn trong các trận thiên tai. Chúng tôi mong muốn mang đến cho cộng đồng
                 một cái nhìn trực quan và kịp thời.
             </p>
-            <button className="btn-hero">Xem Bản Đồ</button>
+            <button className="btn-hero" onClick={() => navigate('/map')}>Xem Bản Đồ</button>
             </div>
         </section>
 
@@ -107,7 +107,7 @@ const HomePage = () => {
                 <span>|</span>
                 <button onClick={() => window.scrollTo(0, 0)}>Trang chủ</button>
                 <span>|</span>
-                <button>Bản đồ</button>
+                <button onClick={() => navigate('/map')}>Bản đồ</button>
             </div>
         </footer>
         </div>
