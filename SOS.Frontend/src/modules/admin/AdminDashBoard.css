@@ -49,6 +49,8 @@
   .row-pending { border-left-color: #f97316; }   /* Cam */
   .row-approved { border-left-color: #3b82f6; }  /* Xanh dương */
   .row-completed { border-left-color: #22c55e; } /* Xanh lá */
+  /* Thêm màu cho hàng Đang Hỗ Trợ */
+  .row-inprogress { border-left-color: #9333ea; background-color: #f3e8ff; }
   
   .row-header h3 {
     margin-top: 0;
@@ -128,3 +130,4 @@
     font-weight: bold;
     margin-top: 5px;
   }
+  
