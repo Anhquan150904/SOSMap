@@ -27,7 +27,7 @@ const AdminLogin = () => {
     
     // Chuyển hướng đến trang Dashboard (chúng ta sẽ làm trang này sau)
     // Tạm thời mình cho về Home để test trước nhé
-    navigate('/home');
+    navigate('/admin-dashboard');
     alert("Xin chào Admin! 👋");
   };
 
