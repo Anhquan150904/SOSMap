@@ -7,6 +7,7 @@ import './App.css'; // File CSS chung (nếu cần)
 import LoginPage from './modules/auth/LoginPage';
 import HomePage from './modules/home/HomePage';
 import RoleSelection from './modules/auth/RoleSelection';
+import MapPage from './modules/map/MapPage';
 
 function App() {
   return (
@@ -21,6 +22,8 @@ function App() {
 
           {/* Đường dẫn (/role-selection) sẽ vào trang chọn vai trò */}
           <Route path="/role-selection" element={<RoleSelection />} />
+          {/* Đường dẫn (/map) sẽ vào trang bản đồ */}
+          <Route path="/map" element={<MapPage />} />
         </Routes>
       </div>
     </Router>
