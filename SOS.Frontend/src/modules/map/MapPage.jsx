@@ -12,7 +12,7 @@ import "leaflet/dist/leaflet.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import L from "leaflet";
 import Modal from "../../components/Modal";
-import "./MapPage.css"; // Đảm bảo bạn đã paste CSS của bạn vào file này
+import "./MapPage.css";
 
 // --- CẤU HÌNH ICON MÀU SẮC ---
 const redIcon = new L.Icon({
@@ -37,40 +37,39 @@ const blueIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-// --- CẤU HÌNH GIỚI HẠN BẢN ĐỒ (VIỆT NAM) ---
+// --- GIỚI HẠN BẢN ĐỒ VIỆT NAM ---
 const VIETNAM_BOUNDS = [
   [5.0, 101.0],
   [24.0, 118.0],
 ];
 
-const MapUpdater = ({ center }) => {
+function ChangeView({ center, zoom }) {
   const map = useMap();
-  useEffect(() => {
-    if (center) {
-      map.flyTo(center, 14, { duration: 2 });
-    }
-  }, [center, map]);
+  map.setView(center, zoom);
   return null;
-};
+}
 
 const MapPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState(null);
-
-  // State quản lý danh sách yêu cầu cứu trợ
   const [requests, setRequests] = useState([]);
 
-  // State cho Form tạo yêu cầu
+  // State Form tạo yêu cầu
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [reqType, setReqType] = useState("Cần lương thực");
   const [reqDesc, setReqDesc] = useState("");
 
-  // State location
+  // State Location
   const [provinces, setProvinces] = useState([]);
   const [currentProvince, setCurrentProvince] = useState(null);
   const [showLocaDropdown, setShowLocaDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // --- [MỚI] State Modal Hủy Yêu Cầu ---
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [requestToCancel, setRequestToCancel] = useState(null);
 
   useEffect(() => {
     const fetchApiProvinces = async () => {
@@ -93,7 +92,6 @@ const MapPage = () => {
     setIsLoading(true);
     try {
       const query = `${province.name}, Việt Nam`;
-      // Gọi API tìm kiếm tọa độ (Nominatim OpenStreetMap)
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
           query
@@ -127,21 +125,18 @@ const MapPage = () => {
     if (storedUser) {
       setCurrentUser(JSON.parse(storedUser));
     }
-
     const storedRequests = localStorage.getItem("RELIEF_REQUESTS");
     if (storedRequests) {
       setRequests(JSON.parse(storedRequests));
     }
   }, []);
 
+  // --- HÀM 1: TẠO YÊU CẦU ---
   const handleCreateRequest = () => {
     if (!currentUser || !currentUser.location) {
-      alert(
-        "Lỗi: Không tìm thấy vị trí của bạn. Vui lòng đăng ký lại địa chỉ."
-      );
+      alert("Lỗi: Không tìm thấy vị trí của bạn.");
       return;
     }
-
     const newRequest = {
       id: Date.now(),
       userId: currentUser.phone,
@@ -154,14 +149,80 @@ const MapPage = () => {
       status: "pending",
       timestamp: new Date().toLocaleString(),
     };
-
     const updatedRequests = [...requests, newRequest];
     setRequests(updatedRequests);
     localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
-
-    alert("Đã gửi yêu cầu! Vui lòng chờ Admin duyệt để hiện lên bản đồ.");
+    alert("Đã gửi yêu cầu! Vui lòng chờ Admin duyệt.");
     setShowRequestForm(false);
     setReqDesc("");
+  };
+
+  // --- HÀM 2: NHẬN HỖ TRỢ ---
+  const handleAcceptSupport = (request) => {
+    if (!currentUser || currentUser.role !== "rescuer") return;
+    const confirm = window.confirm(
+      `Bạn có chắc chắn muốn nhận cứu trợ cho ${request.name}?`
+    );
+    if (!confirm) return;
+    const updatedRequests = requests.map((r) =>
+      r.id === request.id
+        ? {
+            ...r,
+            status: "in_progress",
+            rescuerName: currentUser.name,
+            rescuerPhone: currentUser.phone,
+          }
+        : r
+    );
+    setRequests(updatedRequests);
+    localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
+    alert("Đã nhận nhiệm vụ! Hãy di chuyển đến vị trí người bị nạn.");
+  };
+
+  // --- HÀM 3: HOÀN THÀNH ---
+  const handleCompleteSupport = (request) => {
+    const confirm = window.confirm("Xác nhận đã cứu trợ thành công?");
+    if (!confirm) return;
+    const updatedRequests = requests.map((r) =>
+      r.id === request.id ? { ...r, status: "completed" } : r
+    );
+    setRequests(updatedRequests);
+    localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
+    alert("Cảm ơn bạn! Yêu cầu đã hoàn tất.");
+  };
+
+  // --- [MỚI] HÀM 4: KÍCH HOẠT MODAL HỦY ---
+  const handleTriggerCancel = (request) => {
+    setRequestToCancel(request); // Lưu request đang muốn hủy
+    setCancelReason(""); // Reset lý do
+    setShowCancelModal(true); // Mở modal
+  };
+
+  // --- [MỚI] HÀM 5: XÁC NHẬN HỦY TRONG MODAL ---
+  const handleConfirmCancel = () => {
+    if (!cancelReason.trim()) {
+      alert("Vui lòng nhập lý do hủy!");
+      return;
+    }
+
+    const updatedRequests = requests.map((r) =>
+      r.id === requestToCancel.id
+        ? {
+            ...r,
+            status: "approved", // Trở về approved để người khác thấy
+            rescuerName: null,
+            rescuerPhone: null,
+            cancelReason: cancelReason, // Lưu lại lý do hủy (để log nếu cần)
+          }
+        : r
+    );
+
+    setRequests(updatedRequests);
+    localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
+
+    alert("Đã hủy nhận nhiệm vụ.");
+    setShowCancelModal(false); // Đóng modal
+    setRequestToCancel(null);
   };
 
   const centerPosition = currentUser?.location || defaultPosition;
@@ -171,7 +232,6 @@ const MapPage = () => {
 
   return (
     <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
-      {/* Nút Quay lại */}
       <button
         onClick={() => navigate("/home")}
         style={{
@@ -195,7 +255,6 @@ const MapPage = () => {
         <span>⬅</span> Quay lại
       </button>
 
-      {/* NÚT TẠO YÊU CẦU */}
       {currentUser?.role === "rescuee" && (
         <button
           onClick={() => setShowRequestForm(true)}
@@ -221,7 +280,6 @@ const MapPage = () => {
         </button>
       )}
 
-      {/* --- PHẦN CHỌN TỈNH THÀNH (Sử dụng class CSS bạn cung cấp) --- */}
       <div
         className="box-location"
         style={{
@@ -274,21 +332,27 @@ const MapPage = () => {
         maxBounds={VIETNAM_BOUNDS}
         style={{ width: "100%", height: "100%" }}
       >
-        <MapUpdater center={effectiveCenter} />
+        <ChangeView center={effectiveCenter} zoom={14} />
 
         <TileLayer
-          attribution="&copy; OpenStreetMap contributors"
+          attribution="&copy; OpenStreetMap"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
         {requests.map((req) => {
-          // if (req.status !== "approved") return null;
+          if (req.status !== "approved" && req.status !== "in_progress")
+            return null;
+
+          const markerIcon = req.status === "in_progress" ? blueIcon : redIcon;
 
           return (
-            <Marker key={req.id} position={req.location} icon={redIcon}>
+            <Marker key={req.id} position={req.location} icon={markerIcon}>
               <Tooltip direction="top" offset={[0, -40]} opacity={1}>
                 <span>
-                  🆘 {req.name} - {req.type}
+                  {req.status === "in_progress"
+                    ? "🚑 Đang cứu: "
+                    : "🆘 Cần cứu: "}
+                  {req.name}
                 </span>
               </Tooltip>
 
@@ -302,7 +366,96 @@ const MapPage = () => {
                 </span>{" "}
                 <br />
                 Chi tiết: {req.description} <br />
-                Địa chỉ: {req.address}
+                Địa chỉ: {req.address} <br />
+                {currentUser?.role === "rescuer" && (
+                  <div style={{ marginTop: "10px", textAlign: "center" }}>
+                    {/* 1. Chưa ai nhận */}
+                    {req.status === "approved" && (
+                      <button
+                        onClick={() => handleAcceptSupport(req)}
+                        style={{
+                          background: "#007bff",
+                          color: "white",
+                          border: "none",
+                          padding: "6px 12px",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          width: "100%",
+                        }}
+                      >
+                        ✋ Tôi sẽ cứu người này
+                      </button>
+                    )}
+
+                    {/* 2. Tôi đã nhận */}
+                    {req.status === "in_progress" &&
+                      req.rescuerPhone === currentUser.phone && (
+                        <div
+                          style={{
+                            background: "#d1fae5",
+                            padding: "5px",
+                            borderRadius: "4px",
+                          }}
+                        >
+                          <p
+                            style={{
+                              margin: "0 0 5px 0",
+                              color: "#065f46",
+                              fontSize: "0.85rem",
+                            }}
+                          >
+                            🚑 Bạn đang thực hiện
+                          </p>
+                          <button
+                            onClick={() => handleCompleteSupport(req)}
+                            style={{
+                              background: "#059669",
+                              color: "white",
+                              border: "none",
+                              padding: "6px 12px",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              width: "100%",
+                            }}
+                          >
+                            ✅ Đã cứu xong
+                          </button>
+
+                          {/* --- [SỬA] GỌI HÀM TRIGGER MODAL --- */}
+                          <button
+                            onClick={() => handleTriggerCancel(req)}
+                            style={{
+                              background: "#dc2626",
+                              marginTop: "8px",
+                              color: "white",
+                              border: "none",
+                              padding: "6px 12px",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              width: "100%",
+                            }}
+                          >
+                            ❌ Hủy nhận
+                          </button>
+                          {/* ----------------------------------- */}
+                        </div>
+                      )}
+
+                    {/* 3. Người khác nhận */}
+                    {req.status === "in_progress" &&
+                      req.rescuerPhone !== currentUser.phone && (
+                        <p
+                          style={{
+                            color: "#9333ea",
+                            fontStyle: "italic",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          ⚠️ Đã có người khác nhận
+                        </p>
+                      )}
+                  </div>
+                )}
               </Popup>
             </Marker>
           );
@@ -325,7 +478,7 @@ const MapPage = () => {
           )}
       </MapContainer>
 
-      {/* MODAL FORM */}
+      {/* MODAL 1: FORM TẠO YÊU CẦU SOS */}
       {showRequestForm && (
         <Modal
           title="Gửi yêu cầu khẩn cấp"
@@ -354,7 +507,7 @@ const MapPage = () => {
             <label>Mô tả chi tiết</label>
             <textarea
               rows="4"
-              placeholder="Mô tả tình trạng hiện tại..."
+              placeholder="Mô tả tình trạng..."
               value={reqDesc}
               onChange={(e) => setReqDesc(e.target.value)}
               style={{
@@ -371,6 +524,37 @@ const MapPage = () => {
             onClick={handleCreateRequest}
           >
             Gửi Yêu Cầu
+          </button>
+        </Modal>
+      )}
+
+      {/* MODAL 2: FORM HỦY YÊU CẦU */}
+      {showCancelModal && (
+        <Modal
+          title="Lý do hủy nhiệm vụ"
+          onClose={() => setShowCancelModal(false)}
+        >
+          <div className="form-group">
+            <label>Tại sao bạn muốn hủy cứu trợ này?</label>
+            <textarea
+              rows="3"
+              placeholder="Nhập lý do (ví dụ: Xe hỏng, đường bị chặn...)"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px",
+                borderRadius: "5px",
+                border: "1px solid #ddd",
+              }}
+            />
+          </div>
+          <button
+            onClick={handleConfirmCancel}
+            className="btn-primary"
+            style={{ backgroundColor: "#dc2626", marginTop: "10px" }}
+          >
+            Xác nhận Hủy
           </button>
         </Modal>
       )}
