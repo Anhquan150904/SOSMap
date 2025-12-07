@@ -90,7 +90,7 @@ public class AuthController : ControllerBase
                 Phone = req.Phone,
                 FullName = req.FullName,
                 Role = "volunteer",
-                Status = "Pending", // Đổi từ "Block" sang "Pending"
+                Status = "Pending",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };

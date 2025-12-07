@@ -55,5 +55,20 @@ namespace Sos.Infrastructure.Repositories
                 await _db.SaveChangesAsync(ct);
             }
         }
+        // Lấy danh sách người dùng theo role truyền vào
+        public async Task<List<User>> GetUsersByRoleAsync(string role, CancellationToken ct = default)
+        {
+            return await _db.Users
+                .Where(u => u.Role == role)
+                .ToListAsync(ct);
+        }
+        // Lấy danh sách người dùng theo status truyền vào
+        public async Task<List<User>> GetUserByStatusAsync(string status, CancellationToken ct = default)
+        {
+            return await _db.Users
+                .Where(u => u.Status == status)
+                .ToListAsync(ct);
+        }
+
     }
 }

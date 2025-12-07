@@ -13,7 +13,7 @@ public class UserController : ControllerBase
     {
         _userRepo = userRepo;
     }
-
+    // Api Lấy địa chỉ người dùng theo ID truyền vào
     [HttpGet("{id}/address")]
     public async Task<IActionResult> GetUserAddress(Guid id)
     {
@@ -24,6 +24,7 @@ public class UserController : ControllerBase
         }
         return Ok(new { userId = id, address });
     }
+    // Api cập nhật địa chỉ người dùng theo ID truyền vào
 
     [HttpPost("{id}/address")]
     public async Task<IActionResult> UpdateUserAddress(Guid id, string address)
@@ -31,4 +32,21 @@ public class UserController : ControllerBase
         await _userRepo.UpdateLocationAsync(id, address);
         return Ok(new { message = "Address updated successfully" });
     }
+    
+    // Api lấy danh sách người dùng theo role
+    [HttpGet("{role}/get-user-by-role")]
+    public async Task<IActionResult> GetUsersByRole(string role)
+    {
+        var users = await _userRepo.GetUsersByRoleAsync(role);
+        return Ok(users);
+    }
+
+    //Api lấy danh sách người dùng theo trạng thái
+    [HttpGet("{status}/get-user-by-status")]
+    public async Task<IActionResult> GetUsersByStatus(string status)
+    {
+        var users = await _userRepo.GetUserByStatusAsync(status);
+        return Ok(users);
+    }
+
 }
