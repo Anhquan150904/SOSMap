@@ -79,13 +79,6 @@ namespace Sos.WebApi.Controllers
             return Ok(new { canceled = true });
         }
 
-        [HttpPost("test-notify")]
-        public async Task<IActionResult> TestNotify([FromServices] INotificationService notifier)
-        {
-            await notifier.NotifyVolunteersReportCreated(new { reportId = Guid.NewGuid(), name = "Test report" });
-            return Ok("Notification sent!");
-        }
-
         // Hoàn thành nhiệm vụ cứu hộ
         [HttpPost("tasks/{taskId:guid}/done")]
         public async Task<IActionResult> DoneTask(Guid taskId, [FromBody] TaskActionRequest req)
