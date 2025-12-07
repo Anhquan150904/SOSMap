@@ -31,16 +31,14 @@ namespace Sos.Application.Services
             _geomFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
         }
 
-        public async Task<Guid> CreateReportAsync(Guid userId, string? name, string? phone, double lat, double lng, string? address, string? details, string level = "critical")
+        public async Task<Guid> CreateReportAsync(Guid userId, string? name, string? phone, string? address, string? details, string level = "critical")
         {
-            var point = _geomFactory.CreatePoint(new Coordinate(lng, lat));
             var report = new SOSReport
             {
                 UserId = userId,
                 Name = name,
                 Phone = phone,
                 Address = address,
-                Location = point,
                 Details = details,
                 Level = level,
                 Status = "pending",
@@ -53,8 +51,6 @@ namespace Sos.Application.Services
             await _notification.NotifyVolunteersReportCreated(new
             {
                 id = report.Id,
-                lat,
-                lng,
                 level = report.Level,
                 status = report.Status,
                 details = report.Details,
@@ -64,13 +60,14 @@ namespace Sos.Application.Services
             return report.Id;
         }
 
-        public async Task<IEnumerable<object>> GetNearbyAsync(double lat, double lng, double radiusMeters = 2000)
+        public async Task<IEnumerable<object>> GetNearbyAsync(string province)
         {
-            var res = await _repo.FindNearbyAsync(lat, lng, radiusMeters);
+            var res = await _repo.FindNearbyAsync(province);
             return res.Select(r => new {
                 id = r.Id,
-                lat = r.Location.Y,
-                lng = r.Location.X,
+                userId = r.UserId,
+                name = r.Name,
+                phone = r.Phone,
                 status = r.Status,
                 level = r.Level,
                 details = r.Details,
@@ -108,20 +105,21 @@ namespace Sos.Application.Services
             return task.Id;
         }
 
-        public async Task CancelTaskAsync(Guid taskId, Guid volunteerId)
+        public async Task CancelTaskAsync(Guid taskId, Guid volunteerId, string? note)
         {
             var task = await _taskRepo.GetByIdAsync(taskId);
             if (task == null) throw new KeyNotFoundException("Task not found");
             if (task.VolunteerId != volunteerId) throw new UnauthorizedAccessException("Not your task");
 
             task.Status = "canceled";
+            task.Note = note;
             task.UpdatedAt = DateTime.UtcNow;
             await _taskRepo.UpdateAsync(task);
 
             var report = await _repo.GetByIdAsync(task.ReportId);
             if (report != null)
             {
-                report.Status = "pending";
+                report.Status = "accepted";
                 report.UpdatedAt = DateTime.UtcNow;
                 await _repo.UpdateAsync(report);
             }
@@ -150,10 +148,10 @@ namespace Sos.Application.Services
             await _notification.NotifyAdminsTaskCompleted(new { taskId, reportId = task.ReportId });
         }
 
-        public async Task<IEnumerable<object>> GetNearbySafetyPointsAsync(double lat, double lng, double radiusMeters = 5000)
+        public async Task<IEnumerable<object>> GetNearbySafetyPointsAsync(string province)
         {
-            var pts = await _safetyRepo.FindNearbyAsync(lat, lng, radiusMeters);
-            return pts.Select(p => new { id = p.Id, name = p.Name, type = p.Type, address = p.Address, lat = p.Location.Y, lng = p.Location.X });
+            var pts = await _safetyRepo.FindNearbyAsync(province);
+            return pts.Select(p => new { id = p.Id, name = p.Name, type = p.Type, address = p.Address });
         }
     }
 }

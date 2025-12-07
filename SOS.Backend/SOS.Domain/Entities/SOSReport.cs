@@ -1,6 +1,4 @@
-﻿using NetTopologySuite.Geometries;
-
-namespace Sos.Domain.Entities
+﻿namespace Sos.Domain.Entities
 {
     // Báo cáo cứu trợ khẩn cấp
     public class SOSReport
@@ -10,13 +8,10 @@ namespace Sos.Domain.Entities
         public string? Name { get; set; }
         public string? Phone { get; set; }
         public string? Address { get; set; }
-        public Point Location { get; set; } = null!; // SRID 4326
 
         public string Status { get; set; } = "pending"; // pending|accepted|in_progress|completed|canceled|fake|safe
         public string Level { get; set; } = "critical"; // critical|urgent|normal
         public string? Details { get; set; }
-        public bool IsVerified { get; set; } = false;
-
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
