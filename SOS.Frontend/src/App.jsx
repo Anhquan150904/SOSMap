@@ -6,6 +6,10 @@ import './App.css'; // File CSS chung (nếu cần)
 // Import các trang
 import LoginPage from './modules/auth/LoginPage';
 import HomePage from './modules/home/HomePage';
+import RoleSelection from './modules/auth/RoleSelection';
+import MapPage from './modules/map/MapPage';
+import AdminLogin from './modules/auth/AdminLogin';
+import AdminDashboard from './modules/admin/AdminDashboard';
 
 function App() {
   return (
@@ -17,6 +21,15 @@ function App() {
           
           {/* Đường dẫn (/home) sẽ vào trang chủ */}
           <Route path="/home" element={<HomePage />} />
+
+          {/* Đường dẫn (/role-selection) sẽ vào trang chọn vai trò */}
+          <Route path="/role-selection" element={<RoleSelection />} />
+          {/* Đường dẫn (/map) sẽ vào trang bản đồ */}
+          <Route path="/map" element={<MapPage />} />
+          {/* Đường dẫn (/admin-login) sẽ vào trang đăng nhập Admin */}
+          <Route path="/admin-login" element={<AdminLogin />} />
+          {/* Đường dẫn (/admin-dashboard) sẽ vào trang Dashboard Admin */}
+          <Route path="/admin-dashboard" element={<AdminDashboard />} />
         </Routes>
       </div>
     </Router>
