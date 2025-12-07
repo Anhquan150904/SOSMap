@@ -27,7 +27,7 @@ namespace Sos.WebApi.Controllers
             if (user == null) return BadRequest("User not found - authenticate first");
 
             var reportId = await _service.CreateReportAsync(
-                user.Id, req.Name, req.Phone, req.Lat, req.Lng, req.Address, req.Details, req.Level
+                user.Id, req.Name, req.Phone, req.Address, req.Details, req.Level
             );
 
             return CreatedAtAction(nameof(GetById), new { id = reportId }, new { id = reportId });
@@ -46,8 +46,6 @@ namespace Sos.WebApi.Controllers
                 name = r.Name,
                 phone = r.Phone,
                 address = r.Address,
-                lat = r.Location.Y,
-                lng = r.Location.X,
                 status = r.Status,
                 level = r.Level,
                 details = r.Details,
@@ -57,9 +55,9 @@ namespace Sos.WebApi.Controllers
 
         // Lấy danh sách SOS gần vị trí
         [HttpGet]
-        public async Task<IActionResult> GetNearby([FromQuery] double lat, [FromQuery] double lng, [FromQuery] double radiusMeters = 2000)
+        public async Task<IActionResult> GetNearby(string province)
         {
-            var list = await _service.GetNearbyAsync(lat, lng, radiusMeters);
+            var list = await _service.GetNearbyAsync(province);
             return Ok(list);
         }
 
@@ -75,7 +73,7 @@ namespace Sos.WebApi.Controllers
         [HttpPost("tasks/{taskId:guid}/cancel")]
         public async Task<IActionResult> CancelTask(Guid taskId, [FromBody] TaskActionRequest req)
         {
-            await _service.CancelTaskAsync(taskId, req.VolunteerId);
+            await _service.CancelTaskAsync(taskId, req.VolunteerId, req.note);
             return Ok(new { canceled = true });
         }
 
@@ -85,14 +83,6 @@ namespace Sos.WebApi.Controllers
         {
             await _service.MarkTaskDoneAsync(taskId, req.VolunteerId);
             return Ok(new { done = true });
-        }
-
-        // Lấy các điểm an toàn gần vị trí
-        [HttpGet("safety-points")]
-        public async Task<IActionResult> GetNearbySafetyPoints([FromQuery] double lat, [FromQuery] double lng, [FromQuery] double radiusMeters = 5000)
-        {
-            var list = await _service.GetNearbySafetyPointsAsync(lat, lng, radiusMeters);
-            return Ok(list);
         }
     }
 }

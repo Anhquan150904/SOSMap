@@ -9,7 +9,6 @@ namespace Sos.Domain.Entities
         public string Name { get; set; } = null!;
         public string Type { get; set; } = "shelter"; // shelter|food|medical|warehouse
         public string? Address { get; set; }
-        public Point Location { get; set; } = null!;
         public string? Description { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

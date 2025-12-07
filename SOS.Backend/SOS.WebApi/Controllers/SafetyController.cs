@@ -10,10 +10,10 @@ namespace Sos.WebApi.Controllers
         private readonly ReportService _reportService;
         public SafetyController(ReportService s) { _reportService = s; }
 
-        [HttpGet("nearby")]
-        public async Task<IActionResult> Nearby([FromQuery] double lat, [FromQuery] double lng, [FromQuery] double radiusMeters = 5000)
+        [HttpGet("nearby/{province}")]
+        public async Task<IActionResult> Nearby(string province)
         {
-            var pts = await _reportService.GetNearbySafetyPointsAsync(lat, lng, radiusMeters);
+            var pts = await _reportService.GetNearbySafetyPointsAsync(province);
             return Ok(pts);
         }
     }
