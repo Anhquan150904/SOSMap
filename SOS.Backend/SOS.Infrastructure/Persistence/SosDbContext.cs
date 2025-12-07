@@ -31,12 +31,6 @@ namespace Sos.Infrastructure.Persistence
             {
                 b.ToTable("SOSReports");
                 b.HasKey(x => x.Id);
-
-                // SQL Server: dùng geography
-                b.Property(x => x.Location)
-                    .HasColumnType("geography")
-                    .IsRequired();
-
                 b.HasIndex(x => x.Status);
             });
 
@@ -51,7 +45,6 @@ namespace Sos.Infrastructure.Persistence
             {
                 b.ToTable("SafetyPoints");
                 b.HasKey(x => x.Id);
-                b.Property(x => x.Location).HasColumnType("geography").IsRequired();
             });
         }
     }
