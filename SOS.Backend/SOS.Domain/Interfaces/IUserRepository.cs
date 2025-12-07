@@ -15,5 +15,9 @@ namespace Sos.Domain.Interfaces
 
         // Cập nhật vị trí của người dùng
         Task UpdateLocationAsync(Guid id,  string address, CancellationToken ct = default);
+        // Lấy danh sách người dùng theo role
+        Task<List<User>> GetUsersByRoleAsync(string role, CancellationToken ct = default);
+        // Lấy danh sách người dùng theo trạng thái
+        Task<List<User>> GetUserByStatusAsync(string status, CancellationToken ct = default);
     }
 }
