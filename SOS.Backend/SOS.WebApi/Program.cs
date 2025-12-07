@@ -83,6 +83,5 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-app.MapGet("/", () => "SOS SignalR Server đang chạy! Mở file HTML để test.");
 
 app.Run();

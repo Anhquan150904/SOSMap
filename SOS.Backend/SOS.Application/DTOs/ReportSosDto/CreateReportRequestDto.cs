@@ -4,9 +4,7 @@ namespace Sos.Application.DTOs.ReportSosDto
 {
     public record CreateReportRequest(
         string Phone, 
-        string? Name, 
-        double Lat, 
-        double Lng, 
+        string? Name,
         string? Address, 
         string? Details, 
         string Level = "critical"

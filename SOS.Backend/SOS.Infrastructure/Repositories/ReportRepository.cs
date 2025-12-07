@@ -34,13 +34,20 @@ namespace Sos.Infrastructure.Repositories
             await _db.SaveChangesAsync(ct);
         }
 
-        public async Task<IEnumerable<SOSReport>> FindNearbyAsync(double lat, double lng, double radiusMeters, int limit = 200, CancellationToken ct = default)
+        public async Task<IEnumerable<SOSReport>> FindNearbyAsync(string province, int limit = 200, CancellationToken ct = default)
         {
-            var point = _geomFactory.CreatePoint(new Coordinate(lng, lat));
-            // SQL Server translation: use STDistance on geography
+            if (string.IsNullOrWhiteSpace(province))
+                return Enumerable.Empty<SOSReport>();
+
+            province = province.Trim();
+
             return await _db.SOSReports
-                .Where(r => r.Location.Distance(point) <= radiusMeters) // Linq -> SQL translation
-                .OrderBy(r => r.Location.Distance(point))
+                .AsNoTracking()
+                .Where(r => r.Address != null &&
+                            EF.Functions.Like(
+                                r.Address.ToLower(),
+                                "%" + province.ToLower() + "%" // Lấy các bản ghi có chứa tên tỉnh/thành phố
+                            ))
                 .Take(limit)
                 .ToListAsync(ct);
         }
