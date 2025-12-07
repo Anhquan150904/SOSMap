@@ -73,7 +73,7 @@ const RoutingMachine = ({ start, end }) => {
       addWaypoints: false, // Không cho phép kéo thả
       fitSelectedRoutes: true, // Tự động zoom
       lineOptions: {
-        styles: [{ color: "#6FA1EC", weight: 6 }], // Đường màu xanh
+        styles: [{ color: "blue", weight: 8 }], // Đường màu xanh
       },
       // Tắt marker mặc định (vì ta đã có marker riêng)
       createMarker: function () {
@@ -85,7 +85,7 @@ const RoutingMachine = ({ start, end }) => {
       // Xóa đường dẫn cũ khi tọa độ thay đổi
       map.removeControl(routingControl);
     };
-  }, [map, start, end]); // Khi start hoặc end thay đổi, effect này chạy lại -> Vẽ đường mới
+  }, [map, start, end]); 
 
   return null;
 };
@@ -148,7 +148,6 @@ const MapPage = () => {
   }, []);
 
   // --- EFFECT TÌM TUYẾN ĐƯỜNG ĐANG CHẠY ---
-  // Mỗi khi requests thay đổi (ví dụ do cập nhật vị trí), đoạn này chạy lại
   useEffect(() => {
     if (!currentUser || requests.length === 0) return;
 
@@ -163,8 +162,8 @@ const MapPage = () => {
     // Nếu tìm thấy và có đủ tọa độ 2 bên thì vẽ đường
     if (activeReq && activeReq.rescuerLocation && activeReq.location) {
       setActiveRoute({
-        start: activeReq.rescuerLocation, // Vị trí Rescuer (liên tục cập nhật)
-        end: activeReq.location,          // Vị trí Rescuee (cố định)
+        start: activeReq.rescuerLocation, // Rescuer xuất phát
+        end: activeReq.location,          // Rescuee (cố định)
       });
     } else {
       setActiveRoute(null);
@@ -206,7 +205,6 @@ const MapPage = () => {
     }
   };
 
-  // --- CẬP NHẬT ĐỊA CHỈ & TÍNH TOÁN LẠI ĐƯỜNG ĐI ---
   const handleUpdateAddress = async () => {
     if (!newAddressInput.trim()) {
       alert("Vui lòng nhập địa chỉ bạn đang ở!");
@@ -240,23 +238,19 @@ const MapPage = () => {
         localStorage.setItem("user", JSON.stringify(updatedUser));
         setManualPosition(newCoords);
 
-        // 2. [QUAN TRỌNG] Nếu là Rescuer và đang làm nhiệm vụ, phải cập nhật cả trong Đơn hàng
-        // để RoutingMachine biết đường vẽ lại từ điểm mới.
+        // 2. Nếu là Rescuer và đang làm nhiệm vụ -> Cập nhật vào đơn hàng
         if (currentUser.role === 'rescuer') {
-            // Tìm đơn hàng đang thực hiện
             const activeReqIndex = requests.findIndex(
                 r => r.status === 'in_progress' && r.rescuerPhone === currentUser.phone
             );
 
             if (activeReqIndex !== -1) {
-                // Tạo mảng requests mới với thông tin cập nhật
                 const updatedRequests = [...requests];
                 updatedRequests[activeReqIndex] = {
                     ...updatedRequests[activeReqIndex],
-                    rescuerLocation: newCoords // <-- Cập nhật vị trí mới vào đơn hàng
+                    rescuerLocation: newCoords 
                 };
                 
-                // Lưu lại state và localStorage
                 setRequests(updatedRequests);
                 localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
             }
@@ -276,7 +270,7 @@ const MapPage = () => {
     }
   };
 
-  // --- CÁC HÀM XỬ LÝ YÊU CẦU CỨU TRỢ ---
+  // --- CÁC HÀM XỬ LÝ YÊU CẦU ---
   const handleCreateRequest = () => {
     if (!currentUser || !currentUser.location) {
       alert("Lỗi: Không tìm thấy vị trí của bạn.");
@@ -324,7 +318,7 @@ const MapPage = () => {
             status: "in_progress",
             rescuerName: currentUser.name,
             rescuerPhone: currentUser.phone,
-            rescuerLocation: currentUser.location, // Lưu vị trí bắt đầu
+            rescuerLocation: currentUser.location, 
           }
         : r
     );
@@ -433,7 +427,7 @@ const MapPage = () => {
               cursor: "pointer", fontWeight: "600", display: "flex", alignItems: "center", gap: "6px",
             }}
           >
-            <span>📍</span> {currentUser?.role === "rescuer" ? "Cập nhật vị trí" : "Sửa địa chỉ"}
+            <span>📍</span> {currentUser?.role === "rescuer" ? "Cập nhật vị trí" : "Cập nhật vị trí"}
           </button>
         </div>
       )}
@@ -484,71 +478,87 @@ const MapPage = () => {
         {requests.map((req) => {
           if (req.status !== "approved" && req.status !== "in_progress") return null;
 
-          const markerIcon = req.status === "in_progress" ? blueIcon : redIcon;
-
           return (
-            <Marker key={req.id} position={req.location} icon={markerIcon}>
-              <Tooltip direction="top" offset={[0, -40]} opacity={1}>
-                <span>
-                  {req.status === "in_progress" ? "🚑 Đang cứu: " : "🆘 Cần cứu: "}
-                  {req.name}
-                </span>
-              </Tooltip>
+            <React.Fragment key={req.id}>
+                {/* 1. MARKER CỦA RESCUEE (NGƯỜI CẦN CỨU) -> LUÔN MÀU ĐỎ (Red) */}
+                <Marker position={req.location} icon={redIcon}>
+                    <Tooltip direction="top" offset={[0, -40]} opacity={1}>
+                        <span>🆘 {req.name} (Cần cứu)</span>
+                    </Tooltip>
 
-              <Popup>
-                <strong>{req.name}</strong> <br />
-                SĐT: <a href={`tel:${req.phone}`}>{req.phone}</a> <br />
-                <hr style={{ margin: "5px 0" }} />
-                Lý do: <span style={{ color: "#d9534f", fontWeight: "bold" }}>{req.type}</span> <br />
-                Chi tiết: {req.description} <br />
-                Địa chỉ: {req.address} <br />
-                
-                {currentUser?.role === "rescuer" && (
-                  <div style={{ marginTop: "10px", textAlign: "center" }}>
-                    {req.status === "approved" && (
-                      <button
-                        onClick={() => handleAcceptSupport(req)}
-                        style={{ background: "#007bff", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}
-                      >
-                        ✋ Tôi sẽ cứu người này
-                      </button>
-                    )}
+                    <Popup>
+                        <strong>{req.name}</strong> <br />
+                        SĐT: <a href={`tel:${req.phone}`}>{req.phone}</a> <br />
+                        <hr style={{ margin: "5px 0" }} />
+                        Lý do: <span style={{ color: "#d9534f", fontWeight: "bold" }}>{req.type}</span> <br />
+                        Chi tiết: {req.description} <br />
+                        Địa chỉ: {req.address} <br />
+                        
+                        {/* Nút hành động cho Rescuer */}
+                        {currentUser?.role === "rescuer" && (
+                        <div style={{ marginTop: "10px", textAlign: "center" }}>
+                            {req.status === "approved" && (
+                            <button
+                                onClick={() => handleAcceptSupport(req)}
+                                style={{ background: "#007bff", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}
+                            >
+                                ✋ Tôi sẽ cứu người này
+                            </button>
+                            )}
 
-                    {req.status === "in_progress" &&
-                      req.rescuerPhone === currentUser.phone && (
-                        <div style={{ background: "#d1fae5", padding: "5px", borderRadius: "4px" }}>
-                          <p style={{ margin: "0 0 5px 0", color: "#065f46", fontSize: "0.85rem" }}>
-                             Đang dẫn đường... 
-                          </p>
-                          <button
-                            onClick={() => handleCompleteSupport(req)}
-                            style={{ background: "#059669", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}
-                          >
-                            ✅ Đã cứu xong
-                          </button>
-                          <button
-                            onClick={() => handleTriggerCancel(req)}
-                            style={{ background: "#dc2626", marginTop: "8px", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}
-                          >
-                            ❌ Hủy nhận
-                          </button>
+                            {/* Trường hợp tôi đã nhận */}
+                            {req.status === "in_progress" &&
+                            req.rescuerPhone === currentUser.phone && (
+                                <div style={{ background: "#d1fae5", padding: "5px", borderRadius: "4px" }}>
+                                <p style={{ margin: "0 0 5px 0", color: "#065f46", fontSize: "0.85rem" }}>
+                                    Đang dẫn đường... 
+                                </p>
+                                <button
+                                    onClick={() => handleCompleteSupport(req)}
+                                    style={{ background: "#059669", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}
+                                >
+                                    ✅ Đã cứu xong
+                                </button>
+                                <button
+                                    onClick={() => handleTriggerCancel(req)}
+                                    style={{ background: "#dc2626", marginTop: "8px", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}
+                                >
+                                    ❌ Hủy nhận
+                                </button>
+                                </div>
+                            )}
+
+                            {/* Người khác nhận */}
+                            {req.status === "in_progress" &&
+                            req.rescuerPhone !== currentUser.phone && (
+                                <p style={{ color: "#9333ea", fontStyle: "italic", fontWeight: "bold" }}>
+                                ⚠️ Đã có người khác nhận
+                                </p>
+                            )}
                         </div>
-                      )}
+                        )}
+                    </Popup>
+                </Marker>
 
-                    {req.status === "in_progress" &&
-                      req.rescuerPhone !== currentUser.phone && (
-                        <p style={{ color: "#9333ea", fontStyle: "italic", fontWeight: "bold" }}>
-                          ⚠️ Đã có người khác nhận
-                        </p>
-                      )}
-                  </div>
+                {/* 2. MARKER CỦA RESCUER (NGƯỜI CỨU HỘ) -> MÀU XANH (Blue) */}
+                {/* Chỉ hiện khi đơn hàng đang in_progress và có tọa độ rescuer */}
+                {req.status === "in_progress" && req.rescuerLocation && (
+                    <Marker position={req.rescuerLocation} icon={blueIcon}>
+                        <Tooltip direction="top" offset={[0, -40]} opacity={1}>
+                            <span>🚑 {req.rescuerName} (Đang đến)</span>
+                        </Tooltip>
+                        <Popup>
+                            <strong>🚑 {req.rescuerName}</strong> <br /> 
+                            📞 {req.rescuerPhone} <br />
+                            <em style={{color: 'green'}}>Đang di chuyển đến vị trí cứu trợ</em>
+                        </Popup>
+                    </Marker>
                 )}
-              </Popup>
-            </Marker>
+            </React.Fragment>
           );
         })}
 
-        {/* Marker vị trí của tôi */}
+        {/* Marker vị trí của tôi (Mờ đi) */}
         {currentUser && currentUser.location && (
           <Marker position={currentUser.location} icon={currentUser.role === 'rescuer' ? blueIcon : redIcon} opacity={0.6}>
             <Popup>Vị trí của bạn</Popup>
