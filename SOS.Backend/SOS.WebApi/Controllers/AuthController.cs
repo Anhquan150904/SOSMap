@@ -41,7 +41,6 @@ public class AuthController : ControllerBase
             return BadRequest("Invalid or expired OTP");
 
         var user = await _userRepo.GetByPhoneAsync(req.Phone);
-        var locationPoint = _geometryFactory.CreatePoint(new Coordinate(req.Lng, req.Lat));
         string userRole;
 
         if (user == null)
@@ -53,7 +52,6 @@ public class AuthController : ControllerBase
                 Phone = req.Phone,
                 FullName = req.FullName,
                 Role = userRole,
-                LastKnownLocation = locationPoint,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -62,7 +60,6 @@ public class AuthController : ControllerBase
         else
         {
             // Người dùng cũ (chỉ đăng nhập)
-            user.LastKnownLocation = locationPoint;
             user.UpdatedAt = DateTime.UtcNow;
             user.FullName = req.FullName ?? user.FullName; // Cập nhật FullName nếu có
             userRole = user.Role; // Giữ Role đã có (citizen/volunteer/admin)
@@ -73,9 +70,7 @@ public class AuthController : ControllerBase
         {
             userId = user.Id,
             phone = user.Phone,
-            role = userRole,
-            lat = req.Lat,
-            lng = req.Lng
+            role = userRole
         });
     }
 
@@ -86,7 +81,6 @@ public class AuthController : ControllerBase
             return BadRequest("Invalid or expired OTP");
 
         var user = await _userRepo.GetByPhoneAsync(req.Phone);
-        var locationPoint = _geometryFactory.CreatePoint(new Coordinate(req.Lng, req.Lat));
 
         if (user == null)
         {
@@ -96,8 +90,7 @@ public class AuthController : ControllerBase
                 Phone = req.Phone,
                 FullName = req.FullName,
                 Role = "volunteer",
-                Status = "Pending", // Đổi từ "Block" sang "Pending"
-                LastKnownLocation = locationPoint,
+                Status = "Pending",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -112,8 +105,6 @@ public class AuthController : ControllerBase
                 user.Role = "volunteer";
                 user.Status = "Pending"; // Đặt trạng thái chờ duyệt
             }
-
-            user.LastKnownLocation = locationPoint;
             user.UpdatedAt = DateTime.UtcNow;
             user.FullName = req.FullName ?? user.FullName;
             await _userRepo.UpdateAsync(user);
@@ -126,8 +117,6 @@ public class AuthController : ControllerBase
             fullName = user.FullName,
             role = user.Role,
             status = user.Status,
-            lat = req.Lat,
-            lng = req.Lng,
             message = "Bạn đã đăng ký thành công trở thành nhóm cứu hộ. Vui lòng đợi quản trị viên kiểm tra và duyệt thông tin!"
         });
     }

@@ -2,5 +2,5 @@
 
 namespace Sos.Application.DTOs.ReportSosDto
 {
-    public record TaskActionRequest(Guid VolunteerId);
+    public record TaskActionRequest(Guid VolunteerId, string? note);
 }
