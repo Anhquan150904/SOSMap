@@ -49,4 +49,15 @@ public class UserController : ControllerBase
         return Ok(users);
     }
 
+    //Api lấy danh sách người dùng theo trạng thái và status
+    // GET: /api/users?status=active&role=volunteer
+    [HttpGet("get-user-by-role-and-status")]
+    public async Task<IActionResult> GetUsersByStatusAndRole(
+        [FromQuery] string status,
+        [FromQuery] string role)
+    {
+        var users = await _userRepo.GetUserByStatusAndRoleAsync(status, role);
+        return Ok(users);
+    }
+
 }

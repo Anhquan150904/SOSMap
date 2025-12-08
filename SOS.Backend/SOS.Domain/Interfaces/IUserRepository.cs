@@ -19,5 +19,8 @@ namespace Sos.Domain.Interfaces
         Task<List<User>> GetUsersByRoleAsync(string role, CancellationToken ct = default);
         // Lấy danh sách người dùng theo trạng thái
         Task<List<User>> GetUserByStatusAsync(string status, CancellationToken ct = default);
+
+        // Lấy người dùng theo cả role và trạng thái
+        Task<List<User>> GetUserByStatusAndRoleAsync(string status, string role, CancellationToken ct = default);
     }
 }

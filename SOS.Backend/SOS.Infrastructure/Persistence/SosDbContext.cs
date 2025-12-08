@@ -23,7 +23,6 @@ namespace Sos.Infrastructure.Persistence
                 b.ToTable("Users");
                 b.HasKey(x => x.Id);
                 b.HasIndex(x => x.Phone).IsUnique();
-                b.Property(x => x.LastKnownLocation).HasColumnType("geography");
             });
 
             // sos_reports

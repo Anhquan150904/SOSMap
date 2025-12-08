@@ -70,5 +70,13 @@ namespace Sos.Infrastructure.Repositories
                 .ToListAsync(ct);
         }
 
+        // Lấy danh sách người dùng theo cả role - status
+        public async Task<List<User>> GetUserByStatusAndRoleAsync(string status, string role, CancellationToken ct = default)
+        {
+            return await _db.Users
+                .Where(u => u.Status == status && u.Role == role)
+                .ToListAsync(ct);
+        }
+
     }
 }

@@ -7,5 +7,7 @@ namespace SOS.Domain.Interfaces
         Task NotifyAdminsTaskAccepted(object payload);
         Task NotifyVolunteersTaskCanceled(object payload);
         Task NotifyAdminsTaskCompleted(object payload);
+
+        Task NotifyVolunteersRequestTaskCanceled(object payload);
     }
 }
