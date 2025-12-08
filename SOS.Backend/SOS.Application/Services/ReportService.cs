@@ -111,10 +111,7 @@ namespace Sos.Application.Services
             if (task == null) throw new KeyNotFoundException("Task not found");
             if (task.VolunteerId != volunteerId) throw new UnauthorizedAccessException("Not your task");
 
-            task.Status = "canceled";
-            task.Note = note;
-            task.UpdatedAt = DateTime.UtcNow;
-            await _taskRepo.UpdateAsync(task);
+            await _taskRepo.DeleteTaskById(taskId);
 
             var report = await _repo.GetByIdAsync(task.ReportId);
             if (report != null)
@@ -123,6 +120,20 @@ namespace Sos.Application.Services
                 report.UpdatedAt = DateTime.UtcNow;
                 await _repo.UpdateAsync(report);
             }
+
+            await _notification.NotifyVolunteersTaskCanceled(new { taskId, reportId = task.ReportId });
+        }
+
+        public async Task RequestCancelTaskAsync(Guid taskId, Guid volunteerId, string? note)
+        {
+            var task = await _taskRepo.GetByIdAsync(taskId);
+            if (task == null) throw new KeyNotFoundException("Task not found");
+            if (task.VolunteerId != volunteerId) throw new UnauthorizedAccessException("Not your task");
+
+            task.Status = "pending-to-canceled";
+            task.Note = note;
+            task.UpdatedAt = DateTime.UtcNow;
+            await _taskRepo.UpdateAsync(task);
 
             await _notification.NotifyVolunteersTaskCanceled(new { taskId, reportId = task.ReportId });
         }
@@ -152,6 +163,39 @@ namespace Sos.Application.Services
         {
             var pts = await _safetyRepo.FindNearbyAsync(province);
             return pts.Select(p => new { id = p.Id, name = p.Name, type = p.Type, address = p.Address });
+        }
+
+        public async Task<IEnumerable<object>> GetReportsByStatusAsync(string status)
+        {
+            var res = await _repo.GetByStatusAsync(status);
+            if (res == null) return Enumerable.Empty<object>();
+            return new List<object> {
+                new {
+                    id = res.Id,
+                    userId = res.UserId,
+                    name = res.Name,
+                    phone = res.Phone,
+                    address = res.Address,
+                    status = res.Status,
+                    level = res.Level,
+                    details = res.Details,
+                    createdAt = res.CreatedAt
+                }
+            };
+        }
+        public async Task<IEnumerable<object>> GetTasksByStatusAsync(string status)
+        {
+            var task = await _taskRepo.GetByStatusAsync(status);
+            if (task == null) return Enumerable.Empty<object>();
+            return new List<object> {
+                new {
+                    id = task.Id,
+                    reportId = task.ReportId,
+                    volunteerId = task.VolunteerId,
+                    status = task.Status,
+                    createdAt = task.CreatedAt
+                }
+            };
         }
     }
 }
