@@ -409,3 +409,20 @@
         transform: rotate(360deg);
     }
 }
+
+.red-dot {
+  position: absolute; top: -2px; right: -2px;
+  width: 10px; height: 10px; background: #dc2626;
+  border-radius: 50%; border: 2px solid white;
+}
+.dropdown-noti {
+  position: absolute; top: 35px; right: -10px;
+  width: 320px; background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border-radius: 8px; z-index: 1000; border: 1px solid #eee;
+  overflow: hidden; max-height: 400px; overflow-y: auto;
+}
+.noti-header {
+  padding: 10px; border-bottom: 1px solid #eee;
+  font-weight: bold; background: #f9fafb;
+}
