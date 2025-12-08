@@ -9,5 +9,9 @@ namespace Sos.Domain.Interfaces
         Task<RescueTask?> GetByReportIdAsync(Guid reportId, CancellationToken ct = default);
         Task<RescueTask?> GetByIdAsync(Guid id, CancellationToken ct = default);
         Task UpdateAsync(RescueTask task, CancellationToken ct = default);
+
+        Task DeleteTaskById(Guid taskid, CancellationToken ct = default);
+
+        Task<RescueTask?> GetByStatusAsync(string status, CancellationToken ct = default);
     }
 }
