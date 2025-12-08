@@ -1,8 +1,10 @@
 :root {
   /* Bảng màu hiện đại */
-  --primary-color: #4f46e5; /* Xanh Indigo */
+  --primary-color: #4f46e5;
+  /* Xanh Indigo */
   --primary-hover: #4338ca;
-  --danger-color: #ef4444; /* Đỏ cảnh báo */
+  --danger-color: #ef4444;
+  /* Đỏ cảnh báo */
   --danger-hover: #dc2626;
   --bg-color: #f3f4f6;
   --text-main: #1f2937;
@@ -20,11 +22,13 @@
 }
 
 /* Reset margin/padding mặc định của trình duyệt */
-body, html {
+body,
+html {
   margin: 0;
   padding: 0;
   width: 100%;
-  overflow-x: hidden; /* Chặn thanh cuộn ngang thừa */
+  overflow-x: hidden;
+  /* Chặn thanh cuộn ngang thừa */
 }
 
 /* app-container chỉ là lớp vỏ bao ngoài cùng, cho nó full 100% */
@@ -33,7 +37,8 @@ body, html {
   min-height: 100vh;
   margin: 0;
   padding: 0;
-  display: block; /* Quan trọng: Đổi từ flex sang block để nó tự tràn dòng */
+  display: block;
+  /* Quan trọng: Đổi từ flex sang block để nó tự tràn dòng */
 }
 
 /* --- Màn hình chọn Role --- */
@@ -84,13 +89,19 @@ body, html {
 .card.rescuee-card:hover {
   border-color: var(--danger-color);
 }
-.card.rescuee-card h3 { color: var(--danger-color); }
+
+.card.rescuee-card h3 {
+  color: var(--danger-color);
+}
 
 /* Card riêng cho Người cứu hộ (Màu xanh) */
 .card.rescuer-card:hover {
   border-color: var(--primary-color);
 }
-.card.rescuer-card h3 { color: var(--primary-color); }
+
+.card.rescuer-card h3 {
+  color: var(--primary-color);
+}
 
 .card h3 {
   font-size: 1.5rem;
@@ -107,9 +118,14 @@ body, html {
 /* --- Modal Overlay --- */
 .modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.6); /* Đen mờ đậm hơn */
-  backdrop-filter: blur(4px); /* Hiệu ứng kính mờ phía sau */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  /* Đen mờ đậm hơn */
+  backdrop-filter: blur(4px);
+  /* Hiệu ứng kính mờ phía sau */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -136,7 +152,7 @@ body, html {
   text-align: center;
 }
 
-.modal-content > p {
+.modal-content>p {
   text-align: center;
   margin-bottom: 30px;
   color: var(--text-secondary);
@@ -188,7 +204,8 @@ body, html {
   outline: none;
   border-color: var(--primary-color);
   background-color: #fff;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); /* Glow effect */
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  /* Glow effect */
 }
 
 .form-group input:read-only {
@@ -229,8 +246,13 @@ body, html {
 
 /* --- Animations --- */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
@@ -238,6 +260,7 @@ body, html {
     opacity: 0;
     transform: translateY(20px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);

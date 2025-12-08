@@ -212,6 +212,20 @@
 
 /* HERO SECTION - MÀU XANH LÁ */
 .hero-section {
+
+    height: calc(100vh - 59px - 70px);
+    overflow-y: auto;
+}
+
+.lst-btn-hp {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 10px;
+
+}
+
+.hero-content {
+
     background: linear-gradient(135deg, #00b09b, #96c93d);
     /* Gradient xanh */
     padding: 80px 20px;
@@ -219,9 +233,9 @@
     color: white;
 }
 
-.hero-content {
-    max-width: 800px;
+.hero-content--text {
     margin: 0 auto;
+    max-width: 800px;
 }
 
 .hero-content h1 {
@@ -239,6 +253,18 @@
 .btn-hero {
     background: white;
     color: #28a745;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.btn-request {
+    background: rgb(255, 0, 0);
+    color: #ffffff;
     padding: 12px 30px;
     border: none;
     border-radius: 25px;
@@ -291,9 +317,10 @@
 
 /* FOOTER */
 .site-footer {
-    padding: 60px 20px 20px;
+
     text-align: center;
     background-color: #fff;
+
 }
 
 .partners-list p {
@@ -310,8 +337,8 @@
 }
 
 .footer-bottom {
-    margin-top: 60px;
-    padding-top: 20px;
+
+
     border-top: 1px solid #eee;
     background-color: #1f2937;
     /* Màu đậm cuối trang giống ảnh */
@@ -322,8 +349,7 @@
 /* ... Các code cũ của footer giữ nguyên ... */
 
 .footer-bottom {
-    margin-top: 60px;
-    padding-top: 20px;
+
     border-top: 1px solid #374151;
     /* Đổi màu viền cho tiệp màu nền tối */
     background-color: #1f2937;

@@ -1,0 +1,100 @@
+/* Container của ô nhập địa chỉ để định vị popup */
+.address-input-container {
+    position: relative;
+    width: 100%;
+}
+
+/* Khung hiển thị danh sách gợi ý */
+.suggestions-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    margin-top: 2px;
+}
+
+/* Từng dòng địa điểm */
+.suggestion-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #f0f0f0;
+    color: #333;
+    text-align: left;
+    /* Căn trái chữ */
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: #f3f4f6;
+}
+
+/* Icon địa điểm */
+.suggestion-icon {
+    color: #666;
+    font-size: 1.1rem;
+    min-width: 20px;
+}
+
+/* Container để định vị popup */
+.address-input-container {
+    position: relative;
+    width: 100%;
+}
+
+/* Dropdown danh sách gợi ý */
+.suggestions-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 9999;
+    /* Đảm bảo nằm trên các phần tử khác */
+}
+
+/* Từng dòng địa chỉ */
+.suggestion-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.2s;
+    text-align: left;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover {
+    background-color: #f0f9ff;
+    /* Màu nền khi di chuột vào */
+}
+
+.suggestion-text {
+    font-size: 0.9rem;
+    color: #333;
+    line-height: 1.4;
+}
