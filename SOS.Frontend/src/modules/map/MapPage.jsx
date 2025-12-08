@@ -49,6 +49,40 @@ function ChangeView({ center, zoom }) {
   return null;
 }
 
+// --- 2. COMPONENT VẼ ĐƯỜNG DẪN (ROUTING) ---
+const RoutingMachine = ({ start, end }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map || !start || !end) return;
+
+    // Tạo control chỉ đường
+    const routingControl = L.Routing.control({
+      waypoints: [
+        L.latLng(start[0], start[1]), // Điểm bắt đầu (Volunteer)
+        L.latLng(end[0], end[1]), // Điểm kết thúc (Citizen)
+      ],
+      routeWhileDragging: false,
+      show: false, // Ẩn bảng hướng dẫn text
+      addWaypoints: false, // Không cho phép kéo thả
+      fitSelectedRoutes: true, // Tự động zoom
+      lineOptions: {
+        styles: [{ color: "#6FA1EC", weight: 6 }], // Đường màu xanh
+      },
+      createMarker: function () {
+        return null;
+      },
+    }).addTo(map);
+
+    return () => {
+      // Xóa đường dẫn cũ khi tọa độ thay đổi
+      map.removeControl(routingControl);
+    };
+  }, [map, start, end]);
+
+  return null;
+};
+
 const MapPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -57,7 +91,7 @@ const MapPage = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [requests, setRequests] = useState([]);
 
-  // State Form tạo yêu cầu
+  // State Form
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [reqType, setReqType] = useState("Cần lương thực");
   const [reqDesc, setReqDesc] = useState("");
@@ -68,21 +102,16 @@ const MapPage = () => {
   const [showLocaDropdown, setShowLocaDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // State Modal Hủy Yêu Cầu
+  // State Modal
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [requestToCancel, setRequestToCancel] = useState(null);
-
-  // State Modal Cập nhật Địa chỉ & Gợi ý (AUTOCOMPLETE)
   const [showUpdateAddressModal, setShowUpdateAddressModal] = useState(false);
   const [newAddressInput, setNewAddressInput] = useState("");
   const [manualPosition, setManualPosition] = useState(null);
 
-  // --- STATE MỚI CHO GỢI Ý ĐỊA CHỈ ---
-  const [suggestions, setSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const debounceRef = useRef(null);
-  const wrapperRef = useRef(null); // Click outside handler
+  // State Routing
+  const [activeRoute, setActiveRoute] = useState(null);
 
   // --- EFFECTS ---
   useEffect(() => {
@@ -101,7 +130,7 @@ const MapPage = () => {
   }, []);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
+    const storedUser = localStorage.getItem("currentUser");
     if (storedUser) {
       setCurrentUser(JSON.parse(storedUser));
     }
@@ -113,66 +142,27 @@ const MapPage = () => {
 
   // Effect click outside để ẩn popup gợi ý
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-        setShowSuggestions(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [wrapperRef]);
+    if (!currentUser || requests.length === 0) return;
 
-  // --- HÀM LỌC TRÙNG LẶP GỢI Ý ---
-  const filterUniqueSuggestions = (data) => {
-    const seen = new Set();
-    return data.filter((item) => {
-      const duplicate = seen.has(item.display_name);
-      seen.add(item.display_name);
-      return !duplicate;
+    const activeReq = requests.find((r) => {
+      const isMyTask =
+        (r.status === "in_progress" || r.status === "cancel_pending") &&
+        (r.userId === currentUser.phone ||
+          r.rescuerPhone === currentUser.phone);
+      return isMyTask;
     });
-  };
 
-  // --- HANDLER NHẬP LIỆU ĐỊA CHỈ (AUTOCOMPLETE) ---
-  const handleAddressInputChange = (e) => {
-    const value = e.target.value;
-    setNewAddressInput(value);
-
-    if (!value.trim()) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
+    if (activeReq && activeReq.rescuerLocation && activeReq.location) {
+      setActiveRoute({
+        start: activeReq.rescuerLocation,
+        end: activeReq.location,
+      });
+    } else {
+      setActiveRoute(null);
     }
+  }, [requests, currentUser]);
 
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            value
-          )}&addressdetails=1&limit=10&countrycodes=vn`
-        );
-        const data = await res.json();
-        const uniqueData = filterUniqueSuggestions(data);
-        setSuggestions(uniqueData);
-        setShowSuggestions(true);
-      } catch (error) {
-        console.error("Lỗi lấy gợi ý:", error);
-      }
-    }, 500);
-  };
-
-  // --- HANDLER CHỌN GỢI Ý ---
-  const handleSelectSuggestion = (item) => {
-    setNewAddressInput(item.display_name);
-    setShowSuggestions(false);
-  };
-
-  // --- HANDLERS KHÁC ---
+  // --- HANDLERS ---
 
   const handleChooseProvince = async (province) => {
     setCurrentProvince(province);
@@ -190,10 +180,7 @@ const MapPage = () => {
         const lat = parseFloat(data[0].lat);
         const lon = parseFloat(data[0].lon);
         navigate("/map", {
-          state: {
-            position: [lat, lon],
-            name: province.name,
-          },
+          state: { position: [lat, lon], name: province.name },
         });
       } else {
         navigate("/map", { state: { name: province.name } });
@@ -212,9 +199,7 @@ const MapPage = () => {
       alert("Vui lòng nhập địa chỉ bạn đang ở!");
       return;
     }
-
     setIsLoading(true);
-
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
@@ -228,7 +213,6 @@ const MapPage = () => {
         const lon = parseFloat(data[0].lon);
         const newCoords = [lat, lon];
 
-        // Cập nhật thông tin user
         const updatedUser = {
           ...currentUser,
           address: data[0].display_name,
@@ -236,11 +220,42 @@ const MapPage = () => {
         };
 
         setCurrentUser(updatedUser);
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-
+        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
         setManualPosition(newCoords);
 
-        alert("Đã cập nhật vị trí mới thành công!");
+        // Update DB gốc
+        const userDB = JSON.parse(
+          localStorage.getItem("USER_DATABASE") || "{}"
+        );
+        const userKey = `${updatedUser.phone}_${updatedUser.role}`;
+        if (userDB[userKey]) {
+          userDB[userKey] = updatedUser;
+          localStorage.setItem("USER_DATABASE", JSON.stringify(userDB));
+        }
+
+        // Nếu là Volunteer và đang làm nhiệm vụ -> Cập nhật vào đơn hàng
+        if (currentUser.role === "volunteer") {
+          const activeReqIndex = requests.findIndex(
+            (r) =>
+              (r.status === "in_progress" || r.status === "cancel_pending") &&
+              r.rescuerPhone === currentUser.phone
+          );
+
+          if (activeReqIndex !== -1) {
+            const updatedRequests = [...requests];
+            updatedRequests[activeReqIndex] = {
+              ...updatedRequests[activeReqIndex],
+              rescuerLocation: newCoords,
+            };
+            setRequests(updatedRequests);
+            localStorage.setItem(
+              "RELIEF_REQUESTS",
+              JSON.stringify(updatedRequests)
+            );
+          }
+        }
+
+        alert("Đã cập nhật vị trí! Đường dẫn sẽ được vẽ lại.");
         setShowUpdateAddressModal(false);
         setNewAddressInput("");
       } else {
@@ -256,7 +271,6 @@ const MapPage = () => {
     }
   };
 
-  // --- CÁC HÀM XỬ LÝ YÊU CẦU ---
   const handleCreateRequest = () => {
     if (!currentUser || !currentUser.location) {
       alert("Lỗi: Không tìm thấy vị trí của bạn.");
@@ -282,8 +296,46 @@ const MapPage = () => {
     setReqDesc("");
   };
 
+  // --- [MỚI] HÀM XỬ LÝ CITIZEN HỦY ĐƠN ---
+  const handleCitizenCancelRequest = (req) => {
+    const confirm = window.confirm(
+      "Bạn đã an toàn và muốn hủy yêu cầu cứu trợ này?"
+    );
+    if (!confirm) return;
+
+    if (req.status === "in_progress" && req.rescuerPhone) {
+      const notis = JSON.parse(
+        localStorage.getItem("SYSTEM_NOTIFICATIONS") || "[]"
+      );
+      notis.push({
+        to: req.rescuerPhone,
+        targetRole: "volunteer", // [QUAN TRỌNG] Gửi cho Volunteer
+        message: `⚠️ Người dân ${req.name} đã hủy yêu cầu cứu trợ vì họ đã an toàn. Bạn hãy dừng nhiệm vụ.`,
+        time: new Date().toLocaleString(),
+        isRead: false,
+      });
+      localStorage.setItem("SYSTEM_NOTIFICATIONS", JSON.stringify(notis));
+    }
+
+    const updatedRequests = requests.map((r) =>
+      r.id === req.id ? { ...r, status: "canceled" } : r
+    );
+
+    setRequests(updatedRequests);
+    localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
+    alert("Đã hủy yêu cầu thành công!");
+  };
+
   const handleAcceptSupport = (request) => {
-    if (!currentUser || currentUser.role !== "rescuer") return;
+    if (!currentUser || currentUser.role !== "volunteer") return;
+
+    if (!currentUser.location) {
+      alert("Bạn cần cập nhật vị trí của mình trước khi nhận nhiệm vụ!");
+      setNewAddressInput(currentUser.address || "");
+      setShowUpdateAddressModal(true);
+      return;
+    }
+
     const confirm = window.confirm(
       `Bạn có chắc chắn muốn nhận cứu trợ cho ${request.name}?`
     );
@@ -325,23 +377,18 @@ const MapPage = () => {
       alert("Vui lòng nhập lý do hủy!");
       return;
     }
-
     const updatedRequests = requests.map((r) =>
       r.id === requestToCancel.id
         ? {
             ...r,
-            status: "approved",
-            rescuerName: null,
-            rescuerPhone: null,
+            status: "cancel_pending",
             cancelReason: cancelReason,
           }
         : r
     );
-
     setRequests(updatedRequests);
     localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
-
-    alert("Đã hủy nhận nhiệm vụ.");
+    alert("Đã gửi yêu cầu hủy! Vui lòng chờ Admin phê duyệt.");
     setShowCancelModal(false);
     setRequestToCancel(null);
   };
@@ -353,6 +400,12 @@ const MapPage = () => {
   const incomingName = location.state?.name;
 
   const effectiveCenter = manualPosition || incomingPosition || centerPosition;
+
+  // LOGIC HIỂN THỊ NÚT
+  const isCitizenFunc =
+    currentUser?.role === "citizen" ||
+    currentUser?.role === "volunteer-pending";
+  const isVolunteerFunc = currentUser?.role === "volunteer";
 
   return (
     <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
@@ -380,8 +433,28 @@ const MapPage = () => {
         <span>⬅</span> Quay lại
       </button>
 
-      {/* Cụm nút chức năng cho Rescuee (SOS + Update Address) */}
-      {currentUser?.role === "rescuee" && (
+      {/* Thông báo nếu đang chờ duyệt */}
+      {currentUser?.role === "volunteer-pending" && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            background: "rgba(255, 165, 0, 0.9)",
+            color: "white",
+            textAlign: "center",
+            padding: "5px",
+            zIndex: 2000,
+            fontWeight: "bold",
+          }}
+        >
+          ⚠️ Tài khoản Tình nguyện viên đang chờ duyệt.
+        </div>
+      )}
+
+      {/* Cụm nút hành động */}
+      {currentUser && (
         <div
           className="lst-btn-rescuee"
           style={{
@@ -393,24 +466,27 @@ const MapPage = () => {
             gap: "10px",
           }}
         >
-          <button
-            onClick={() => setShowRequestForm(true)}
-            style={{
-              padding: "10px 20px",
-              backgroundColor: "#dc2626",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
-              cursor: "pointer",
-              fontWeight: "bold",
-              display: "flex",
-              alignItems: "center",
-              gap: "5px",
-            }}
-          >
-            <span>🆘</span> Gửi tín hiệu SOS
-          </button>
+          {isCitizenFunc && (
+            <button
+              onClick={() => setShowRequestForm(true)}
+              style={{
+                padding: "10px 20px",
+                backgroundColor: "#dc2626",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
+                cursor: "pointer",
+                fontWeight: "bold",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+              }}
+            >
+              <span>🆘</span> Gửi tín hiệu SOS
+            </button>
+          )}
+
           <button
             onClick={() => {
               setNewAddressInput(currentUser?.address || "");
@@ -430,7 +506,8 @@ const MapPage = () => {
               gap: "6px",
             }}
           >
-            <span>📍</span> Cập nhật lại địa chỉ
+            <span>📍</span>{" "}
+            {isVolunteerFunc ? "Cập nhật vị trí" : "Sửa địa chỉ"}
           </button>
         </div>
       )}
@@ -496,131 +573,215 @@ const MapPage = () => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {requests.map((req) => {
-          if (req.status !== "approved" && req.status !== "in_progress")
-            return null;
+        {/* --- VẼ TUYẾN ĐƯỜNG MỚI (NẾU CÓ) --- */}
+        {activeRoute && (
+          <RoutingMachine start={activeRoute.start} end={activeRoute.end} />
+        )}
 
-          const markerIcon = req.status === "in_progress" ? blueIcon : redIcon;
-
-          return (
-            <Marker key={req.id} position={req.location} icon={markerIcon}>
-              <Tooltip direction="top" offset={[0, -40]} opacity={1}>
-                <span>
-                  {req.status === "in_progress"
-                    ? "🚑 Đang cứu: "
-                    : "🆘 Cần cứu: "}
-                  {req.name}
-                </span>
-              </Tooltip>
-
-              <Popup>
-                <strong>{req.name}</strong> <br />
-                SĐT: <a href={`tel:${req.phone}`}>{req.phone}</a> <br />
-                <hr style={{ margin: "5px 0" }} />
-                Lý do:{" "}
-                <span style={{ color: "#d9534f", fontWeight: "bold" }}>
-                  {req.type}
-                </span>{" "}
-                <br />
-                Chi tiết: {req.description} <br />
-                Địa chỉ: {req.address} <br />
-                {currentUser?.role === "rescuer" && (
-                  <div style={{ marginTop: "10px", textAlign: "center" }}>
-                    {/* 1. Chưa ai nhận */}
-                    {req.status === "approved" && (
-                      <button
-                        onClick={() => handleAcceptSupport(req)}
-                        style={{
-                          background: "#007bff",
-                          color: "white",
-                          border: "none",
-                          padding: "6px 12px",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          width: "100%",
-                        }}
-                      >
-                        ✋ Tôi sẽ cứu người này
-                      </button>
-                    )}
-
-                    {/* 2. Tôi đã nhận */}
-                    {req.status === "in_progress" &&
-                      req.rescuerPhone === currentUser.phone && (
-                        <div
-                          style={{
-                            background: "#d1fae5",
-                            padding: "5px",
-                            borderRadius: "4px",
-                          }}
-                        >
-                          <p
-                            style={{
-                              margin: "0 0 5px 0",
-                              color: "#065f46",
-                              fontSize: "0.85rem",
-                            }}
-                          >
-                            🚑 Bạn đang thực hiện
-                          </p>
-                          <button
-                            onClick={() => handleCompleteSupport(req)}
-                            style={{
-                              background: "#059669",
-                              color: "white",
-                              border: "none",
-                              padding: "6px 12px",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              width: "100%",
-                            }}
-                          >
-                            ✅ Đã cứu xong
-                          </button>
-
-                          <button
-                            onClick={() => handleTriggerCancel(req)}
-                            style={{
-                              background: "#dc2626",
-                              marginTop: "8px",
-                              color: "white",
-                              border: "none",
-                              padding: "6px 12px",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              width: "100%",
-                            }}
-                          >
-                            ❌ Hủy nhận
-                          </button>
-                        </div>
-                      )}
-
-                    {/* 3. Người khác nhận */}
-                    {req.status === "in_progress" &&
-                      req.rescuerPhone !== currentUser.phone && (
-                        <p
-                          style={{
-                            color: "#9333ea",
-                            fontStyle: "italic",
-                            fontWeight: "bold",
-                          }}
-                        >
-                          ⚠️ Đã có người khác nhận
-                        </p>
-                      )}
-                  </div>
-                )}
-              </Popup>
-            </Marker>
-          );
-        })}
-
+        {/* 1. MARKER VỊ TRÍ CỦA TÔI (Z-INDEX THẤP NHẤT) */}
         {currentUser && currentUser.location && (
-          <Marker position={currentUser.location} icon={blueIcon} opacity={0.6}>
+          <Marker
+            position={currentUser.location}
+            icon={isVolunteerFunc ? blueIcon : redIcon}
+            opacity={0.6}
+            zIndexOffset={-100} // <-- Đẩy xuống dưới cùng
+          >
             <Popup>Vị trí của bạn</Popup>
           </Marker>
         )}
+
+        {/* 2. MARKER ĐƠN HÀNG (Z-INDEX CAO NHẤT) */}
+        {requests.map((req) => {
+          if (
+            req.status !== "approved" &&
+            req.status !== "in_progress" &&
+            req.status !== "cancel_pending"
+          )
+            return null;
+
+          return (
+            <React.Fragment key={req.id}>
+              {/* 1. MARKER CỦA CITIZEN (LUÔN ĐỎ) */}
+              <Marker
+                position={req.location}
+                icon={redIcon}
+                zIndexOffset={1000} // <-- Luôn nổi lên trên cùng
+              >
+                <Tooltip direction="top" offset={[0, -40]} opacity={1}>
+                  <span>🆘 {req.name} (Cần cứu)</span>
+                </Tooltip>
+
+                <Popup>
+                  <strong>{req.name}</strong> <br />
+                  SĐT: <a href={`tel:${req.phone}`}>{req.phone}</a> <br />
+                  <hr style={{ margin: "5px 0" }} />
+                  Lý do:{" "}
+                  <span style={{ color: "#d9534f", fontWeight: "bold" }}>
+                    {req.type}
+                  </span>{" "}
+                  <br />
+                  Chi tiết: {req.description} <br />
+                  Địa chỉ: {req.address} <br />
+                  {/* --- [MỚI] NÚT CHO CITIZEN HỦY ĐƠN --- */}
+                  {currentUser && currentUser.phone === req.userId && (
+                    <button
+                      onClick={() => handleCitizenCancelRequest(req)}
+                      style={{
+                        marginTop: "10px",
+                        width: "100%",
+                        padding: "5px",
+                        background: "#10b981",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      ✅ Tôi đã an toàn / Hủy yêu cầu
+                    </button>
+                  )}
+                  {/* Nút hành động cho Volunteer */}
+                  {isVolunteerFunc && (
+                    <div style={{ marginTop: "10px", textAlign: "center" }}>
+                      {req.status === "approved" && (
+                        <button
+                          onClick={() => handleAcceptSupport(req)}
+                          style={{
+                            background: "#007bff",
+                            color: "white",
+                            border: "none",
+                            padding: "6px 12px",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            width: "100%",
+                          }}
+                        >
+                          ✋ Tôi sẽ cứu người này
+                        </button>
+                      )}
+
+                      {/* Trường hợp tôi đang thực hiện */}
+                      {req.status === "in_progress" &&
+                        req.rescuerPhone === currentUser.phone && (
+                          <div
+                            style={{
+                              background: "#d1fae5",
+                              padding: "5px",
+                              borderRadius: "4px",
+                            }}
+                          >
+                            <p
+                              style={{
+                                margin: "0 0 5px 0",
+                                color: "#065f46",
+                                fontSize: "0.85rem",
+                              }}
+                            >
+                              Đang dẫn đường...
+                            </p>
+                            <button
+                              onClick={() => handleCompleteSupport(req)}
+                              style={{
+                                background: "#059669",
+                                color: "white",
+                                border: "none",
+                                padding: "6px 12px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                width: "100%",
+                              }}
+                            >
+                              ✅ Đã cứu xong
+                            </button>
+                            <button
+                              onClick={() => handleTriggerCancel(req)}
+                              style={{
+                                background: "#dc2626",
+                                marginTop: "8px",
+                                color: "white",
+                                border: "none",
+                                padding: "6px 12px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                width: "100%",
+                              }}
+                            >
+                              ❌ Hủy nhận
+                            </button>
+                          </div>
+                        )}
+
+                      {/* Trường hợp đang chờ Admin duyệt hủy */}
+                      {req.status === "cancel_pending" &&
+                        req.rescuerPhone === currentUser.phone && (
+                          <div
+                            style={{
+                              background: "#fff7ed",
+                              padding: "5px",
+                              borderRadius: "4px",
+                              border: "1px solid #fed7aa",
+                            }}
+                          >
+                            <p
+                              style={{
+                                color: "#c2410c",
+                                fontWeight: "bold",
+                                margin: 0,
+                                fontSize: "0.9rem",
+                              }}
+                            >
+                              ⏳ Đang chờ Admin duyệt hủy...
+                            </p>
+                            <small style={{ color: "#555" }}>
+                              Lý do: {req.cancelReason}
+                            </small>
+                          </div>
+                        )}
+
+                      {/* Người khác nhận */}
+                      {(req.status === "in_progress" ||
+                        req.status === "cancel_pending") &&
+                        req.rescuerPhone !== currentUser.phone && (
+                          <p
+                            style={{
+                              color: "#9333ea",
+                              fontStyle: "italic",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            ⚠️ Đã có người khác nhận
+                          </p>
+                        )}
+                    </div>
+                  )}
+                </Popup>
+              </Marker>
+
+              {/* 2. MARKER CỦA VOLUNTEER (XANH) */}
+              {(req.status === "in_progress" ||
+                req.status === "cancel_pending") &&
+                req.rescuerLocation && (
+                  <Marker
+                    position={req.rescuerLocation}
+                    icon={blueIcon}
+                    zIndexOffset={900} // <-- Nổi thứ 2
+                  >
+                    <Tooltip direction="top" offset={[0, -40]} opacity={1}>
+                      <span>🚑 {req.rescuerName} (Đang đến)</span>
+                    </Tooltip>
+                    <Popup>
+                      <strong>🚑 {req.rescuerName}</strong> <br />
+                      📞 {req.rescuerPhone} <br />
+                      <em style={{ color: "green" }}>
+                        Đang di chuyển đến vị trí cứu trợ
+                      </em>
+                    </Popup>
+                  </Marker>
+                )}
+            </React.Fragment>
+          );
+        })}
 
         {incomingPosition &&
           JSON.stringify(incomingPosition) !==
