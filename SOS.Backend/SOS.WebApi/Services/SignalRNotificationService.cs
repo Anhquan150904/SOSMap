@@ -27,5 +27,7 @@ namespace Sos.Application.Services
         public Task NotifyVolunteersTaskCanceled(object payload) => Task.CompletedTask;
         public Task NotifyAdminsTaskCompleted(object payload) => Task.CompletedTask;
 
+        public Task NotifyVolunteersRequestTaskCanceled(object payload) => Task.CompletedTask;
+
     }
 }
