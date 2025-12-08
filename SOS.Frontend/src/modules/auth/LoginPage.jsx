@@ -20,83 +20,80 @@ const LoginPage = () => {
     setStep('PHONE_OTP');
   };
 
-  // 1. XỬ LÝ ĐĂNG NHẬP
   const handleLoginSuccess = (phoneNumber) => {
     setTempPhone(phoneNumber);
     
-    // Tạo "Khóa duy nhất" kết hợp giữa SĐT và Role
-    // Ví dụ: "0912345678_rescuee" hoặc "0912345678_rescuer"
-    const uniqueKey = `${phoneNumber}_${role}`;
-
+    // Tạo khóa tìm kiếm: SĐT + Role (Lưu ý: volunteer-pending cũng dùng chung luồng volunteer)
+    // Nếu chọn volunteer thì ta sẽ check cả 2 key: volunteer và volunteer-pending
+    let targetRole = role; 
+    
     const userDB = JSON.parse(localStorage.getItem('USER_DATABASE') || '{}');
     
-    // Kiểm tra xem SĐT này VỚI ROLE NÀY đã tồn tại chưa
-    if (userDB[uniqueKey]) {
-      const existingUser = userDB[uniqueKey];
-      
-      // Đăng nhập thành công -> Lưu vào session
-      localStorage.setItem('user', JSON.stringify(existingUser)); 
+    // Check xem user đã tồn tại với role chính thức chưa
+    let userKey = `${phoneNumber}_${targetRole}`;
+    
+    // Nếu chọn volunteer, check xem có đang pending không
+    if (role === 'volunteer') {
+        if (userDB[`${phoneNumber}_volunteer`]) {
+            userKey = `${phoneNumber}_volunteer`;
+        } else if (userDB[`${phoneNumber}_volunteer-pending`]) {
+            userKey = `${phoneNumber}_volunteer-pending`;
+        }
+    }
+
+    if (userDB[userKey]) {
+      const existingUser = userDB[userKey];
+      localStorage.setItem('currentUser', JSON.stringify(existingUser)); 
       navigate('/home');
     } else {
-      // Nếu chưa có tài khoản cho Role này (dù SĐT có thể đã đk role kia)
-      // -> Chuyển sang form Đăng Ký mới cho Role hiện tại
       setStep('REGISTER');
     }
   };
 
-  // 2. XỬ LÝ ĐĂNG KÝ
+  // --- LOGIC ĐĂNG KÝ MỚI ---
   const handleRegisterSuccess = (userData) => {
-    // userData: { fullName, phoneNumber, address, location }
-    
+    // Xác định role thực tế khi lưu
+    // Nếu chọn citizen -> citizen
+    // Nếu chọn volunteer -> volunteer-pending (Chờ duyệt)
+    const effectiveRole = role === 'volunteer' ? 'volunteer-pending' : 'citizen';
+
     const newUser = { 
       name: userData.fullName, 
       phone: userData.phoneNumber,
-      role: role, // Role hiện tại
+      role: effectiveRole, // Lưu role mới
       address: userData.address,   
-      location: userData.location  
+      location: userData.location,
+      joinedAt: new Date().toLocaleString()
     };
 
-    // Tạo khóa duy nhất
-    const uniqueKey = `${userData.phoneNumber}_${role}`;
-
-    // Lưu vào Database
+    // 1. Lưu vào Database User
+    const uniqueKey = `${userData.phoneNumber}_${effectiveRole}`;
     const userDB = JSON.parse(localStorage.getItem('USER_DATABASE') || '{}');
-    userDB[uniqueKey] = newUser; // <--- Lưu theo key mới (SĐT_Role)
+    userDB[uniqueKey] = newUser;
     localStorage.setItem('USER_DATABASE', JSON.stringify(userDB));
 
-    // Lưu phiên làm việc
-    localStorage.setItem('user', JSON.stringify(newUser));
-    
+    // 2. Nếu là Volunteer, tạo thêm yêu cầu duyệt gửi Admin
+    if (role === 'volunteer') {
+        const approvalReqs = JSON.parse(localStorage.getItem('VOLUNTEER_APPROVALS') || '[]');
+        approvalReqs.push(newUser);
+        localStorage.setItem('VOLUNTEER_APPROVALS', JSON.stringify(approvalReqs));
+        alert("Đăng ký thành công! Tài khoản của bạn đang chờ Admin duyệt. Hiện tại bạn có thể sử dụng chức năng như Người dân.");
+    }
+
+    // 3. Lưu phiên làm việc
+    localStorage.setItem('currentUser', JSON.stringify(newUser));
     navigate('/home');
   };
 
   const handleClose = () => {
-    setStep('ROLE_SELECT');
-    setRole(null);
-    setTempPhone('');
+    setStep('ROLE_SELECT'); setRole(null); setTempPhone('');
   };
 
   return (
     <div style={loginStyle}>
-      {step === 'ROLE_SELECT' && (
-        <RoleSelection onSelectRole={handleSelectRole} />
-      )}
-      
-      {step === 'PHONE_OTP' && (
-        <LoginForm 
-            role={role} 
-            onClose={handleClose} 
-            onSuccess={handleLoginSuccess} 
-        />
-      )}
-      
-      {step === 'REGISTER' && (
-        <RegisterForm 
-            phoneNumber={tempPhone} 
-            onClose={handleClose} 
-            onRegister={handleRegisterSuccess} 
-        />
-      )}
+      {step === 'ROLE_SELECT' && <RoleSelection onSelectRole={handleSelectRole} />}
+      {step === 'PHONE_OTP' && <LoginForm role={role} onClose={handleClose} onSuccess={handleLoginSuccess} />}
+      {step === 'REGISTER' && <RegisterForm phoneNumber={tempPhone} onClose={handleClose} onRegister={handleRegisterSuccess} />}
     </div>
   );
 };
