@@ -11,13 +11,11 @@ public class AuthController : ControllerBase
 {
     private readonly OtpService _otp;
     private readonly IUserRepository _userRepo;
-    private readonly GeometryFactory _geometryFactory;
 
     public AuthController(OtpService otp, IUserRepository userRepo)
     {
         _otp = otp;
         _userRepo = userRepo;
-        _geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
     }
 
     [HttpPost("send-otp")]
