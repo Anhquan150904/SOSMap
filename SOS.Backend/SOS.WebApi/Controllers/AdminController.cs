@@ -20,9 +20,9 @@ namespace Sos.WebApi.Controllers
         }
         // chấp nhận yêu cầu hủy nhiệm vụ cứu hộ
         [HttpPost("tasks/{taskId:guid}/cancel")]
-        public async Task<IActionResult> CancelTask(Guid taskId, [FromBody] TaskActionRequest req)
+        public async Task<IActionResult> CancelTask(Guid taskId, Guid volunteerId)
         {
-            await _service.CancelTaskAsync(taskId, req.VolunteerId, req.note);
+            await _service.CancelTaskAsync(taskId, volunteerId);
             return Ok(new { canceled = true });
         }
 

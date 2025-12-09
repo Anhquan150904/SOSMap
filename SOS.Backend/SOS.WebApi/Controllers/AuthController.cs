@@ -68,7 +68,8 @@ public class AuthController : ControllerBase
         {
             userId = user.Id,
             phone = user.Phone,
-            role = userRole
+            role = userRole,
+            status = user.Status,
         });
     }
 
