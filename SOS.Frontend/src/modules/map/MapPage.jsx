@@ -1,5 +1,5 @@
 // src/modules/map/MapPage.jsx
-import React, { useEffect, useState, useRef } from "react"; // Thêm useRef
+import React, { useEffect, useState, useRef } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -9,6 +9,11 @@ import {
   useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
+
+// --- 1. IMPORT THƯ VIỆN CHỈ ĐƯỜNG ---
+import "leaflet-routing-machine";
+import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
+
 import { useNavigate, useLocation } from "react-router-dom";
 import L from "leaflet";
 import Modal from "../../components/Modal";
@@ -37,12 +42,12 @@ const blueIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-// --- GIỚI HẠN BẢN ĐỒ VIỆT NAM ---
 const VIETNAM_BOUNDS = [
   [5.0, 101.0],
   [24.0, 118.0],
 ];
 
+// Component di chuyển view
 function ChangeView({ center, zoom }) {
   const map = useMap();
   map.setView(center, zoom);
@@ -56,18 +61,14 @@ const RoutingMachine = ({ start, end }) => {
   useEffect(() => {
     if (!map || !start || !end) return;
 
-    // Tạo control chỉ đường
     const routingControl = L.Routing.control({
-      waypoints: [
-        L.latLng(start[0], start[1]), // Điểm bắt đầu (Volunteer)
-        L.latLng(end[0], end[1]), // Điểm kết thúc (Citizen)
-      ],
+      waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
       routeWhileDragging: false,
-      show: false, // Ẩn bảng hướng dẫn text
-      addWaypoints: false, // Không cho phép kéo thả
-      fitSelectedRoutes: true, // Tự động zoom
+      show: false,
+      addWaypoints: false,
+      fitSelectedRoutes: true,
       lineOptions: {
-        styles: [{ color: "#6FA1EC", weight: 6 }], // Đường màu xanh
+        styles: [{ color: "#6FA1EC", weight: 6 }],
       },
       createMarker: function () {
         return null;
@@ -75,7 +76,6 @@ const RoutingMachine = ({ start, end }) => {
     }).addTo(map);
 
     return () => {
-      // Xóa đường dẫn cũ khi tọa độ thay đổi
       map.removeControl(routingControl);
     };
   }, [map, start, end]);
@@ -96,7 +96,7 @@ const MapPage = () => {
   const [reqType, setReqType] = useState("Cần lương thực");
   const [reqDesc, setReqDesc] = useState("");
 
-  // State Location (Dropdown chọn tỉnh)
+  // State Location
   const [provinces, setProvinces] = useState([]);
   const [currentProvince, setCurrentProvince] = useState(null);
   const [showLocaDropdown, setShowLocaDropdown] = useState(false);
@@ -112,6 +112,12 @@ const MapPage = () => {
 
   // State Routing
   const [activeRoute, setActiveRoute] = useState(null);
+
+  // --- [MỚI] STATE CHO AUTOCOMPLETE ---
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef(null);
+  const wrapperRef = useRef(null);
 
   // --- EFFECTS ---
   useEffect(() => {
@@ -142,6 +148,17 @@ const MapPage = () => {
 
   // Effect click outside để ẩn popup gợi ý
   useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [wrapperRef]);
+
+  // --- EFFECT TÌM TUYẾN ĐƯỜNG ĐANG CHẠY ---
+  useEffect(() => {
     if (!currentUser || requests.length === 0) return;
 
     const activeReq = requests.find((r) => {
@@ -161,6 +178,50 @@ const MapPage = () => {
       setActiveRoute(null);
     }
   }, [requests, currentUser]);
+
+  // --- LOGIC AUTOCOMPLETE ---
+  const filterUniqueSuggestions = (data) => {
+    const seen = new Set();
+    return data.filter((item) => {
+      const duplicate = seen.has(item.display_name);
+      seen.add(item.display_name);
+      return !duplicate;
+    });
+  };
+
+  const handleAddressInputChange = (e) => {
+    const value = e.target.value;
+    setNewAddressInput(value);
+
+    if (!value.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            value
+          )}&addressdetails=1&limit=5&countrycodes=vn`
+        );
+        const data = await res.json();
+        const uniqueData = filterUniqueSuggestions(data);
+        setSuggestions(uniqueData);
+        setShowSuggestions(true);
+      } catch (error) {
+        console.error("Lỗi lấy gợi ý:", error);
+      }
+    }, 500);
+  };
+
+  const handleSelectSuggestion = (item) => {
+    setNewAddressInput(item.display_name);
+    setShowSuggestions(false);
+  };
 
   // --- HANDLERS ---
 
@@ -193,7 +254,7 @@ const MapPage = () => {
     }
   };
 
-  // --- HÀM CẬP NHẬT ĐỊA CHỈ ---
+  // --- HÀM CẬP NHẬT ĐỊA CHỈ (Đã sửa logic theo yêu cầu) ---
   const handleUpdateAddress = async () => {
     if (!newAddressInput.trim()) {
       alert("Vui lòng nhập địa chỉ bạn đang ở!");
@@ -213,17 +274,18 @@ const MapPage = () => {
         const lon = parseFloat(data[0].lon);
         const newCoords = [lat, lon];
 
+        // 1. Cập nhật user hiện tại
         const updatedUser = {
           ...currentUser,
-          address: data[0].display_name,
+          address: data[0].display_name, // Lấy tên chuẩn từ API
           location: newCoords,
         };
 
         setCurrentUser(updatedUser);
-        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
-        setManualPosition(newCoords);
+        localStorage.setItem("currentUser", JSON.stringify(updatedUser)); // Lưu vào localStorage
+        setManualPosition(newCoords); // Map tự bay đến vị trí này
 
-        // Update DB gốc
+        // Update DB gốc (nếu có)
         const userDB = JSON.parse(
           localStorage.getItem("USER_DATABASE") || "{}"
         );
@@ -296,7 +358,6 @@ const MapPage = () => {
     setReqDesc("");
   };
 
-  // --- [MỚI] HÀM XỬ LÝ CITIZEN HỦY ĐƠN ---
   const handleCitizenCancelRequest = (req) => {
     const confirm = window.confirm(
       "Bạn đã an toàn và muốn hủy yêu cầu cứu trợ này?"
@@ -309,7 +370,7 @@ const MapPage = () => {
       );
       notis.push({
         to: req.rescuerPhone,
-        targetRole: "volunteer", // [QUAN TRỌNG] Gửi cho Volunteer
+        targetRole: "volunteer",
         message: `⚠️ Người dân ${req.name} đã hủy yêu cầu cứu trợ vì họ đã an toàn. Bạn hãy dừng nhiệm vụ.`,
         time: new Date().toLocaleString(),
         isRead: false,
@@ -320,7 +381,6 @@ const MapPage = () => {
     const updatedRequests = requests.map((r) =>
       r.id === req.id ? { ...r, status: "canceled" } : r
     );
-
     setRequests(updatedRequests);
     localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
     alert("Đã hủy yêu cầu thành công!");
@@ -328,14 +388,12 @@ const MapPage = () => {
 
   const handleAcceptSupport = (request) => {
     if (!currentUser || currentUser.role !== "volunteer") return;
-
     if (!currentUser.location) {
       alert("Bạn cần cập nhật vị trí của mình trước khi nhận nhiệm vụ!");
       setNewAddressInput(currentUser.address || "");
       setShowUpdateAddressModal(true);
       return;
     }
-
     const confirm = window.confirm(
       `Bạn có chắc chắn muốn nhận cứu trợ cho ${request.name}?`
     );
@@ -347,6 +405,7 @@ const MapPage = () => {
             status: "in_progress",
             rescuerName: currentUser.name,
             rescuerPhone: currentUser.phone,
+            rescuerLocation: currentUser.location,
           }
         : r
     );
@@ -398,7 +457,6 @@ const MapPage = () => {
   const centerPosition = currentUser?.location || defaultPosition;
   const incomingPosition = location.state?.position;
   const incomingName = location.state?.name;
-
   const effectiveCenter = manualPosition || incomingPosition || centerPosition;
 
   // LOGIC HIỂN THỊ NÚT
@@ -486,7 +544,6 @@ const MapPage = () => {
               <span>🆘</span> Gửi tín hiệu SOS
             </button>
           )}
-
           <button
             onClick={() => {
               setNewAddressInput(currentUser?.address || "");
@@ -529,15 +586,10 @@ const MapPage = () => {
         >
           {currentProvince ? currentProvince.name : "Chọn tỉnh"} ▴
         </div>
-
         {showLocaDropdown && (
           <div
             className="lst-provinces-drop"
-            style={{
-              top: "auto",
-              bottom: "20px",
-              marginBottom: "10px",
-            }}
+            style={{ top: "auto", bottom: "20px", marginBottom: "10px" }}
           >
             {provinces.length > 0 ? (
               provinces.map((prov) => (
@@ -556,7 +608,7 @@ const MapPage = () => {
         )}
       </div>
 
-      {/* Bản đồ Leaflet */}
+      {/* MAP CONTAINER */}
       <MapContainer
         key={JSON.stringify(effectiveCenter)}
         center={effectiveCenter}
@@ -573,24 +625,23 @@ const MapPage = () => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {/* --- VẼ TUYẾN ĐƯỜNG MỚI (NẾU CÓ) --- */}
         {activeRoute && (
           <RoutingMachine start={activeRoute.start} end={activeRoute.end} />
         )}
 
-        {/* 1. MARKER VỊ TRÍ CỦA TÔI (Z-INDEX THẤP NHẤT) */}
+        {/* 1. MARKER VỊ TRÍ CỦA TÔI */}
         {currentUser && currentUser.location && (
           <Marker
             position={currentUser.location}
             icon={isVolunteerFunc ? blueIcon : redIcon}
             opacity={0.6}
-            zIndexOffset={-100} // <-- Đẩy xuống dưới cùng
+            zIndexOffset={-100}
           >
             <Popup>Vị trí của bạn</Popup>
           </Marker>
         )}
 
-        {/* 2. MARKER ĐƠN HÀNG (Z-INDEX CAO NHẤT) */}
+        {/* 2. MARKER ĐƠN HÀNG (QUAN TRỌNG: RESTORED FULL LOGIC POPUP) */}
         {requests.map((req) => {
           if (
             req.status !== "approved" &&
@@ -601,11 +652,11 @@ const MapPage = () => {
 
           return (
             <React.Fragment key={req.id}>
-              {/* 1. MARKER CỦA CITIZEN (LUÔN ĐỎ) */}
+              {/* MARKER CITIZEN */}
               <Marker
                 position={req.location}
                 icon={redIcon}
-                zIndexOffset={1000} // <-- Luôn nổi lên trên cùng
+                zIndexOffset={1000}
               >
                 <Tooltip direction="top" offset={[0, -40]} opacity={1}>
                   <span>🆘 {req.name} (Cần cứu)</span>
@@ -622,8 +673,8 @@ const MapPage = () => {
                   <br />
                   Chi tiết: {req.description} <br />
                   Địa chỉ: {req.address} <br />
-                  {/* --- [MỚI] NÚT CHO CITIZEN HỦY ĐƠN --- */}
-                  {currentUser && currentUser.phone === req.userId && (
+                  {/* Nút hủy cho Citizen */}
+                  {isCitizenFunc && (
                     <button
                       onClick={() => handleCitizenCancelRequest(req)}
                       style={{
@@ -641,7 +692,7 @@ const MapPage = () => {
                       ✅ Tôi đã an toàn / Hủy yêu cầu
                     </button>
                   )}
-                  {/* Nút hành động cho Volunteer */}
+                  {/* Nút hành động cho Volunteer - PHẦN BẠN CẦN GIỮ LẠI */}
                   {isVolunteerFunc && (
                     <div style={{ marginTop: "10px", textAlign: "center" }}>
                       {req.status === "approved" && (
@@ -661,7 +712,6 @@ const MapPage = () => {
                         </button>
                       )}
 
-                      {/* Trường hợp tôi đang thực hiện */}
                       {req.status === "in_progress" &&
                         req.rescuerPhone === currentUser.phone && (
                           <div
@@ -712,7 +762,6 @@ const MapPage = () => {
                           </div>
                         )}
 
-                      {/* Trường hợp đang chờ Admin duyệt hủy */}
                       {req.status === "cancel_pending" &&
                         req.rescuerPhone === currentUser.phone && (
                           <div
@@ -739,7 +788,6 @@ const MapPage = () => {
                           </div>
                         )}
 
-                      {/* Người khác nhận */}
                       {(req.status === "in_progress" ||
                         req.status === "cancel_pending") &&
                         req.rescuerPhone !== currentUser.phone && (
@@ -758,14 +806,14 @@ const MapPage = () => {
                 </Popup>
               </Marker>
 
-              {/* 2. MARKER CỦA VOLUNTEER (XANH) */}
+              {/* MARKER VOLUNTEER (XANH) */}
               {(req.status === "in_progress" ||
                 req.status === "cancel_pending") &&
                 req.rescuerLocation && (
                   <Marker
                     position={req.rescuerLocation}
                     icon={blueIcon}
-                    zIndexOffset={900} // <-- Nổi thứ 2
+                    zIndexOffset={900}
                   >
                     <Tooltip direction="top" offset={[0, -40]} opacity={1}>
                       <span>🚑 {req.rescuerName} (Đang đến)</span>
@@ -794,7 +842,7 @@ const MapPage = () => {
           )}
       </MapContainer>
 
-      {/* MODAL 1: FORM TẠO YÊU CẦU SOS */}
+      {/* MODAL 1: FORM SOS */}
       {showRequestForm && (
         <Modal
           title="Gửi yêu cầu khẩn cấp"
@@ -844,7 +892,7 @@ const MapPage = () => {
         </Modal>
       )}
 
-      {/* MODAL 2: FORM HỦY YÊU CẦU */}
+      {/* MODAL 2: HỦY YÊU CẦU */}
       {showCancelModal && (
         <Modal
           title="Lý do hủy nhiệm vụ"
@@ -854,7 +902,7 @@ const MapPage = () => {
             <label>Tại sao bạn muốn hủy cứu trợ này?</label>
             <textarea
               rows="3"
-              placeholder="Nhập lý do (ví dụ: Xe hỏng, đường bị chặn...)"
+              placeholder="Nhập lý do..."
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
               style={{
@@ -875,26 +923,26 @@ const MapPage = () => {
         </Modal>
       )}
 
-      {/* MODAL 3: CẬP NHẬT ĐỊA CHỈ (ĐÃ THÊM GỢI Ý) */}
+      {/* MODAL 3: CẬP NHẬT ĐỊA CHỈ (CÓ AUTOCOMPLETE) */}
       {showUpdateAddressModal && (
         <Modal
           title="Cập nhật Vị trí Hiện tại"
           onClose={() => setShowUpdateAddressModal(false)}
         >
           <p style={{ color: "#dc2626", marginBottom: "10px" }}>
-            ⚠️ <strong>Lưu ý:</strong> Nhập địa chỉ chi tiết để định vị chính
-            xác!
+            ⚠️ <strong>Lưu ý:</strong> Địa chỉ càng chi tiết, hệ thống càng xác
+            định tọa độ chính xác!
           </p>
           <div className="form-group" ref={wrapperRef}>
             <label>Địa chỉ hiện tại của bạn:</label>
 
-            {/* CONTAINER CHO INPUT VÀ DROPDOWN */}
+            {/* CONTAINER CHO INPUT VÀ DROPDOWN GỢI Ý */}
             <div className="address-input-container">
               <input
                 type="text"
-                placeholder="Nhập địa chỉ..."
+                placeholder="Ví dụ: Số nhà 10, ngách 5, phố X, Phường Y..."
                 value={newAddressInput}
-                onChange={handleAddressInputChange}
+                onChange={handleAddressInputChange} // Đã gắn hàm xử lý gợi ý
                 onFocus={() => newAddressInput && setShowSuggestions(true)}
                 style={{
                   width: "100%",
@@ -924,7 +972,6 @@ const MapPage = () => {
               )}
             </div>
           </div>
-
           <button
             onClick={handleUpdateAddress}
             className="btn-primary"
