@@ -28,9 +28,7 @@ const HomePage = () => {
   // --- STATE QUẢN LÝ ĐIỂM CỨU TRỢ ---
   const [reliefPoints, setReliefPoints] = useState([]);
   const [showAddPointModal, setShowAddPointModal] = useState(false);
-
-  // [MỚI] State xác định đang sửa điểm nào (null = thêm mới)
-  const [editingPoint, setEditingPoint] = useState(null);
+  const [editingPoint, setEditingPoint] = useState(null); // Để biết đang sửa hay thêm
 
   // State form nhập liệu điểm cứu trợ
   const [newPointName, setNewPointName] = useState("");
@@ -130,7 +128,7 @@ const HomePage = () => {
     }
   }, []);
 
-  // --- 2. LOAD PROVINCES & UTILS ---
+  // --- 2. LOAD PROVINCES ---
   useEffect(() => {
     const fetchApiProvinces = async () => {
       try {
@@ -140,14 +138,16 @@ const HomePage = () => {
         const data = await res.json();
         setProvinces(data);
       } catch (error) {
-        console.error("Lỗi API Tỉnh thành: ", error);
+        console.error("Lỗi API: ", error);
       }
     };
     fetchApiProvinces();
   }, []);
 
   useEffect(() => {
-    if (showRequestForm && user) setReqAddress(user.address || "");
+    if (showRequestForm && user) {
+      setReqAddress(user.address || "");
+    }
   }, [showRequestForm, user]);
 
   useEffect(() => {
@@ -157,6 +157,7 @@ const HomePage = () => {
       const clickedInsidePoint =
         pointWrapperRef.current &&
         pointWrapperRef.current.contains(event.target);
+
       if (!clickedInsideSOS && !clickedInsidePoint) {
         setShowSuggestions(false);
         setActiveAutocomplete(null);
@@ -190,7 +191,7 @@ const HomePage = () => {
         setSuggestions(uniqueData);
         setShowSuggestions(true);
       } catch (error) {
-        console.error("Lỗi lấy gợi ý:", error);
+        console.error("Lỗi gợi ý:", error);
       }
     }, 500);
   };
@@ -227,26 +228,22 @@ const HomePage = () => {
     setActiveAutocomplete(null);
   };
 
-  // --- [MỚI] CRUD ĐIỂM CỨU TRỢ ---
-
-  // Reset form về trạng thái thêm mới
+  // --- 4. CRUD ĐIỂM CỨU TRỢ ---
   const resetPointForm = () => {
     setNewPointName("");
     setNewPointAddress("");
     setNewPointType("Thực phẩm, Nước sạch");
     setNewPointStatus("Đang hoạt động");
-    setEditingPoint(null); // Quan trọng: Xóa trạng thái sửa
+    setEditingPoint(null);
   };
 
-  // Mở modal Thêm mới
   const openAddModal = () => {
     resetPointForm();
     setShowAddPointModal(true);
   };
 
-  // Mở modal Sửa (Đổ dữ liệu cũ vào form)
   const openEditModal = (point) => {
-    setEditingPoint(point); // Lưu điểm đang sửa
+    setEditingPoint(point);
     setNewPointName(point.name);
     setNewPointAddress(point.address);
     setNewPointType(point.type);
@@ -254,17 +251,14 @@ const HomePage = () => {
     setShowAddPointModal(true);
   };
 
-  // Xử lý Lưu (Thêm mới hoặc Cập nhật)
   const handleSavePoint = () => {
     if (!newPointName || !newPointAddress) {
-      alert("Vui lòng nhập tên điểm và địa chỉ!");
+      alert("Vui lòng nhập tên và địa chỉ!");
       return;
     }
 
     let updatedPoints;
-
     if (editingPoint) {
-      // --- LOGIC CẬP NHẬT (SỬA) ---
       updatedPoints = reliefPoints.map((p) =>
         p.id === editingPoint.id
           ? {
@@ -276,9 +270,8 @@ const HomePage = () => {
             }
           : p
       );
-      alert("Đã cập nhật điểm cứu trợ thành công!");
+      alert("Đã cập nhật thành công!");
     } else {
-      // --- LOGIC THÊM MỚI ---
       const newPoint = {
         id: Date.now(),
         name: newPointName,
@@ -287,20 +280,17 @@ const HomePage = () => {
         status: newPointStatus,
       };
       updatedPoints = [...reliefPoints, newPoint];
-      alert("Đã thêm điểm cứu trợ mới!");
+      alert("Đã thêm điểm mới!");
     }
 
-    // Lưu State và LocalStorage
     setReliefPoints(updatedPoints);
     localStorage.setItem("RELIEF_POINTS", JSON.stringify(updatedPoints));
-
     setShowAddPointModal(false);
     resetPointForm();
   };
 
-  // Xử lý Xóa
   const handleDeletePoint = (id) => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa điểm cứu trợ này không?")) {
+    if (window.confirm("Bạn có chắc muốn xóa điểm này?")) {
       const updatedPoints = reliefPoints.filter((p) => p.id !== id);
       setReliefPoints(updatedPoints);
       localStorage.setItem("RELIEF_POINTS", JSON.stringify(updatedPoints));
@@ -358,7 +348,7 @@ const HomePage = () => {
       };
       const updatedRequests = [...requests, newRequest];
       localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
-      alert("✅ Đã gửi yêu cầu thành công!");
+      alert("✅ Gửi yêu cầu thành công!");
       setShowRequestForm(false);
       setReqDesc("");
     } catch (error) {
@@ -374,20 +364,166 @@ const HomePage = () => {
     navigate("/");
   };
   const handleChooseProvince = async (province) => {
-    /* Giữ nguyên */
+    /* Giữ nguyên logic */
+    setCurrentProvince(province);
+    setShowLocaDropdown(false);
+    setIsLoading(true);
+    try {
+      const query = `${province.name}, Việt Nam`;
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+          query
+        )}&format=json&limit=1`
+      );
+      const data = await res.json();
+      if (data && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        navigate("/map", {
+          state: { position: [lat, lon], name: province.name },
+        });
+      } else {
+        navigate("/map", { state: { name: province.name } });
+      }
+    } catch (error) {
+      navigate("/map");
+    } finally {
+      setIsLoading(false);
+    }
   };
+
   const getRoleDisplayName = (role) => {
-    /* Giữ nguyên */ return role;
+    switch (role) {
+      case "citizen":
+        return "Người Dân";
+      case "volunteer":
+        return "Tình Nguyện Viên";
+      case "volunteer-pending":
+        return "TNV (Chờ duyệt)";
+      case "admin":
+        return "Quản Trị Viên";
+      default:
+        return "";
+    }
   };
+
+  // Logic Render Thông Báo
   const renderNotifications = () => {
-    /* Giữ nguyên */ return null;
+    const isPending = user?.role === "volunteer-pending";
+    const isOfficialVolunteer = user?.role === "volunteer";
+    const hasMessages = notifications.length > 0;
+
+    if (!hasMessages && !isPending && !isOfficialVolunteer) {
+      return (
+        <div
+          style={{
+            padding: "20px",
+            color: "#999",
+            textAlign: "center",
+            fontStyle: "italic",
+          }}
+        >
+          Không có thông báo mới.
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        {isPending && (
+          <div
+            style={{
+              padding: "15px",
+              borderBottom: "1px solid #eee",
+              backgroundColor: "#fff7ed",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: "bold",
+                color: "#b45309",
+                marginBottom: "5px",
+                fontSize: "0.9rem",
+              }}
+            >
+              ⏳ Trạng thái hồ sơ
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "#333" }}>
+              Hồ sơ đang chờ xét duyệt.
+            </div>
+          </div>
+        )}
+        {isOfficialVolunteer && (
+          <div
+            style={{
+              padding: "15px",
+              borderBottom: "1px solid #eee",
+              backgroundColor: "#f0fdf4",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: "bold",
+                color: "#15803d",
+                marginBottom: "5px",
+                fontSize: "0.9rem",
+              }}
+            >
+              ✅ Trạng thái hồ sơ
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "#333" }}>
+              Bạn là Tình nguyện viên chính thức.
+            </div>
+          </div>
+        )}
+        {notifications.map((note, idx) => (
+          <div
+            key={idx}
+            style={{
+              padding: "15px",
+              borderBottom: "1px solid #eee",
+              backgroundColor: "#fff",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: "bold",
+                color: "#007bff",
+                marginBottom: "3px",
+                fontSize: "0.9rem",
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
+              <span>🔔 Hệ thống</span>
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  color: "#999",
+                  fontWeight: "normal",
+                }}
+              >
+                {note.time.split(" ")[1]}
+              </span>
+            </div>
+            <div
+              style={{ fontSize: "0.85rem", color: "#333", lineHeight: "1.4" }}
+            >
+              {note.message}
+            </div>
+            <div
+              style={{ fontSize: "0.75rem", color: "#999", marginTop: "5px" }}
+            >
+              {note.time.split(" ")[0]}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
+
   const hasNotification =
     user?.role === "volunteer-pending" || notifications.length > 0;
-
-  // Quyền Admin hoặc Volunteer
-  const canManagePoints =
-    user && (user.role === "admin" || user.role === "volunteer");
 
   return (
     <div className="homepage">
@@ -404,7 +540,31 @@ const HomePage = () => {
             <span className="logo-icon">🚨</span>
             <span className="logo-text">Cứu Hộ</span>
           </div>
-          {/* ... (Phần Header giữ nguyên như cũ) ... */}
+          <div className="box-location">
+            <div
+              className="location-badge"
+              onClick={() => setShowLocaDropdown(!showLocaDropdown)}
+            >
+              {currentProvince ? currentProvince.name : "Chọn tỉnh"} ▾
+            </div>
+            {showLocaDropdown && (
+              <div className="lst-provinces-drop">
+                {provinces.length > 0 ? (
+                  provinces.map((prov) => (
+                    <div
+                      key={prov.code}
+                      onClick={() => handleChooseProvince(prov)}
+                      className="imt-provinces"
+                    >
+                      {prov.name}
+                    </div>
+                  ))
+                ) : (
+                  <div className="imt-provinces">Đang tải...</div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <nav className="main-nav">
           <a href="#" className="active">
@@ -414,20 +574,92 @@ const HomePage = () => {
           <a onClick={() => navigate("/about")}>Liên hệ</a>
           {user ? (
             <div
-              className="user-profile"
-              onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-              style={{ cursor: "pointer" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "20px",
+                marginLeft: "10px",
+              }}
             >
-              <span className="user-name">
-                Xin chào, <strong>{user.name}</strong> ▾
-              </span>
-              {showProfileDropdown && (
-                <div className="dropdown-menu">
-                  <div className="dropdown-item" onClick={handleLogout}>
-                    Đăng xuất
+              {/* --- [ĐÃ KHÔI PHỤC] ICON THÔNG BÁO --- */}
+              <div
+                className="notification-icon"
+                style={{
+                  position: "relative",
+                  cursor: "pointer",
+                  fontSize: "1.2rem",
+                }}
+                onClick={() => setShowNotiDropdown(!showNotiDropdown)}
+              >
+                🔔
+                {hasNotification && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "-2px",
+                      right: "-2px",
+                      width: "10px",
+                      height: "10px",
+                      backgroundColor: "#dc2626",
+                      borderRadius: "50%",
+                      border: "2px solid white",
+                    }}
+                  ></span>
+                )}
+                {showNotiDropdown && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "35px",
+                      right: "-10px",
+                      width: "320px",
+                      backgroundColor: "white",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                      borderRadius: "8px",
+                      zIndex: 1000,
+                      border: "1px solid #eee",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "15px",
+                        borderBottom: "1px solid #eee",
+                        fontWeight: "bold",
+                        background: "#f9fafb",
+                        fontSize: "1rem",
+                      }}
+                    >
+                      Thông báo của bạn
+                    </div>
+                    <div
+                      className="notification-list"
+                      style={{ maxHeight: "350px", overflowY: "auto" }}
+                    >
+                      {renderNotifications()}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+
+              {/* User Profile */}
+              <div
+                className="user-profile"
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                style={{ cursor: "pointer" }}
+              >
+                <span className="user-name">
+                  Xin chào, <strong>{user.name}</strong>{" "}
+                  <small>({getRoleDisplayName(user.role)})</small> ▾
+                </span>
+                {showProfileDropdown && (
+                  <div className="dropdown-menu">
+                    <div className="dropdown-item" onClick={handleLogout}>
+                      Đăng xuất
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <a href="/" style={{ color: "#007bff" }}>
@@ -462,10 +694,9 @@ const HomePage = () => {
             </div>
           </div>
         </div>
-        {/* --- PHẦN BẢNG ĐIỂM CỨU TRỢ (ĐÃ NÂNG CẤP) --- */}
         <div
           className="relief-points-section"
-          style={{ padding: "40px 20px", maxWidth: "1600px", margin: "0 auto" }}
+          style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto" }}
         >
           <div
             className="top-bar-table"
@@ -480,23 +711,21 @@ const HomePage = () => {
               Danh Sách Các Điểm Cứu Trợ
             </h2>
 
-            {canManagePoints && (
-              <button
-                className="btn-add-support"
-                onClick={openAddModal}
-                style={{
-                  backgroundColor: "#15803d",
-                  color: "white",
-                  border: "none",
-                  padding: "8px 16px",
-                  borderRadius: "5px",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                }}
-              >
-                + Thêm điểm cứu trợ
-              </button>
-            )}
+            <button
+              className="btn-add-support"
+              onClick={openAddModal}
+              style={{
+                backgroundColor: "#15803d",
+                color: "white",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: "5px",
+                cursor: "pointer",
+                fontWeight: "bold",
+              }}
+            >
+              + Thêm điểm cứu trợ
+            </button>
           </div>
 
           <div
@@ -527,12 +756,10 @@ const HomePage = () => {
                   <th style={{ padding: "12px 15px", textAlign: "center" }}>
                     Trạng Thái
                   </th>
-                  {/* Cột Hành Động chỉ hiện cho Admin/Volunteer */}
-                  {canManagePoints && (
-                    <th style={{ padding: "12px 15px", textAlign: "center" }}>
-                      Hành động
-                    </th>
-                  )}
+
+                  <th
+                    style={{ padding: "12px 15px", textAlign: "center" }}
+                  ></th>
                 </tr>
               </thead>
               <tbody>
@@ -577,44 +804,40 @@ const HomePage = () => {
                           {point.status}
                         </span>
                       </td>
-                      {/* Nút Sửa / Xóa */}
-                      {canManagePoints && (
-                        <td
-                          style={{ padding: "12px 15px", textAlign: "center" }}
+
+                      <td style={{ padding: "12px 15px", textAlign: "center" }}>
+                        <button
+                          onClick={() => openEditModal(point)}
+                          style={{
+                            marginRight: "10px",
+                            cursor: "pointer",
+                            border: "none",
+                            background: "transparent",
+                            fontSize: "1.2rem",
+                          }}
+                          title="Sửa"
                         >
-                          <button
-                            onClick={() => openEditModal(point)}
-                            style={{
-                              marginRight: "5px",
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: "1.2rem",
-                            }}
-                            title="Sửa"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDeletePoint(point.id)}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: "1.2rem",
-                            }}
-                            title="Xóa"
-                          >
-                            🗑️
-                          </button>
-                        </td>
-                      )}
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDeletePoint(point.id)}
+                          style={{
+                            cursor: "pointer",
+                            border: "none",
+                            background: "transparent",
+                            fontSize: "1.2rem",
+                          }}
+                          title="Xóa"
+                        >
+                          🗑️
+                        </button>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td
-                      colSpan={canManagePoints ? 5 : 4}
+                      colSpan={5}
                       style={{ padding: "20px", textAlign: "center" }}
                     >
                       Chưa có điểm cứu trợ nào.
@@ -627,16 +850,24 @@ const HomePage = () => {
         </div>
       </section>
 
-      <footer className="site-footer">{/* Footer content */}</footer>
+      {/* --- PHẦN BẢNG ĐIỂM CỨU TRỢ --- */}
 
-      {/* --- MODAL 1: GỬI YÊU CẦU SOS (Giữ nguyên) --- */}
+      <footer className="site-footer">
+        <div className="footer-bottom">
+          <span>© 2025 Cứu Hộ App</span>
+          <span>|</span>
+          <button onClick={() => window.scrollTo(0, 0)}>Trang chủ</button>
+          <span>|</span>
+          <button onClick={() => navigate("/map")}>Bản đồ</button>
+        </div>
+      </footer>
+
+      {/* --- MODAL 1: GỬI YÊU CẦU SOS --- */}
       {showRequestForm && (
         <Modal
           title="Gửi yêu cầu khẩn cấp"
           onClose={() => setShowRequestForm(false)}
         >
-          {/* ... Nội dung form SOS ... */}
-          {/* (Để code gọn mình không paste lại phần này, logic giữ nguyên như cũ) */}
           <div className="form-group">
             <label>Bạn cần giúp gì?</label>
             <select
@@ -727,7 +958,7 @@ const HomePage = () => {
         </Modal>
       )}
 
-      {/* --- MODAL 2: THÊM / SỬA ĐIỂM CỨU TRỢ (ĐÃ NÂNG CẤP) --- */}
+      {/* --- MODAL 2: THÊM / SỬA ĐIỂM CỨU TRỢ --- */}
       {showAddPointModal && (
         <Modal
           title={
@@ -737,13 +968,12 @@ const HomePage = () => {
         >
           <div className="form-group">
             <label>
-              Tên điểm cứu trợ <span style={{ color: "red" }}>*</span>
+              Tên điểm <span style={{ color: "red" }}>*</span>
             </label>
             <input
               type="text"
               value={newPointName}
               onChange={(e) => setNewPointName(e.target.value)}
-              placeholder="VD: Nhà văn hóa X..."
               style={{
                 width: "100%",
                 padding: "10px",
@@ -752,7 +982,6 @@ const HomePage = () => {
               }}
             />
           </div>
-
           <div className="form-group" ref={pointWrapperRef}>
             <label>
               Địa chỉ <span style={{ color: "red" }}>*</span>
@@ -767,7 +996,6 @@ const HomePage = () => {
                   setActiveAutocomplete("point") &&
                   setShowSuggestions(true)
                 }
-                placeholder="Nhập địa chỉ chính xác..."
                 style={{
                   width: "100%",
                   padding: "10px",
@@ -796,14 +1024,12 @@ const HomePage = () => {
                 )}
             </div>
           </div>
-
           <div className="form-group">
-            <label>Loại hình hỗ trợ</label>
+            <label>Loại hình</label>
             <input
               type="text"
               value={newPointType}
               onChange={(e) => setNewPointType(e.target.value)}
-              placeholder="VD: Thực phẩm, Áo phao..."
               style={{
                 width: "100%",
                 padding: "10px",
@@ -812,7 +1038,6 @@ const HomePage = () => {
               }}
             />
           </div>
-
           <div className="form-group">
             <label>Trạng thái</label>
             <select
@@ -830,16 +1055,14 @@ const HomePage = () => {
               <option value="Đầy chỗ">Đầy chỗ</option>
             </select>
           </div>
-
           <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
             <button
               className="btn-primary"
               onClick={handleSavePoint}
               style={{ backgroundColor: "#15803d", flex: 1 }}
             >
-              {editingPoint ? "Lưu Cập Nhật" : "Thêm Điểm Cứu Trợ"}
+              {editingPoint ? "Lưu Cập Nhật" : "Thêm Điểm"}
             </button>
-            {/* Nút hủy để reset form */}
             <button
               onClick={() => {
                 setShowAddPointModal(false);
