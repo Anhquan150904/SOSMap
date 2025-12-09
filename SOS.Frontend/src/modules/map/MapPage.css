@@ -26,3 +26,12 @@
     left: 200px;
     z-index: 1000,
 }
+
+.update-address-form {
+
+    resize: vertical;
+    width: 100%;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd
+}
