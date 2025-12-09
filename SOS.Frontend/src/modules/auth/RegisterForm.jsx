@@ -58,7 +58,7 @@ const RegisterForm = ({ phoneNumber, onClose, onRegister }) => {
       } catch (error) {
         console.error("Lỗi lấy gợi ý:", error);
       }
-    }, 400);
+    }, 200);
   };
 
   // --- KHI CHỌN GỢI Ý ---
