@@ -86,6 +86,7 @@ const HomePage = () => {
 
   // --- 1. LOAD DỮ LIỆU ---
   useEffect(() => {
+    // 1.1 Load User & Noti
     const sessionUserStr = localStorage.getItem("currentUser");
     if (sessionUserStr) {
       let currentUser = JSON.parse(sessionUserStr);
@@ -116,6 +117,7 @@ const HomePage = () => {
       setNotifications(myNotis);
     }
 
+    // 1.2 Load Relief Points
     const storedPoints = localStorage.getItem("RELIEF_POINTS");
     if (storedPoints) {
       setReliefPoints(JSON.parse(storedPoints));
@@ -145,9 +147,7 @@ const HomePage = () => {
   }, []);
 
   useEffect(() => {
-    if (showRequestForm && user) {
-      setReqAddress(user.address || "");
-    }
+    if (showRequestForm && user) setReqAddress(user.address || "");
   }, [showRequestForm, user]);
 
   useEffect(() => {
@@ -157,7 +157,6 @@ const HomePage = () => {
       const clickedInsidePoint =
         pointWrapperRef.current &&
         pointWrapperRef.current.contains(event.target);
-
       if (!clickedInsideSOS && !clickedInsidePoint) {
         setShowSuggestions(false);
         setActiveAutocomplete(null);
@@ -167,7 +166,7 @@ const HomePage = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [wrapperRef, pointWrapperRef]);
 
-  // --- 3. LOGIC AUTOCOMPLETE ---
+  // --- 3. AUTOCOMPLETE ---
   const filterUniqueSuggestions = (data) => {
     const seen = new Set();
     return data.filter((item) => {
@@ -187,13 +186,12 @@ const HomePage = () => {
           )}&addressdetails=1&limit=5&countrycodes=vn`
         );
         const data = await res.json();
-        const uniqueData = filterUniqueSuggestions(data);
-        setSuggestions(uniqueData);
+        setSuggestions(filterUniqueSuggestions(data));
         setShowSuggestions(true);
       } catch (error) {
         console.error("Lỗi gợi ý:", error);
       }
-    }, 500);
+    }, 200);
   };
 
   const handleReqAddressChange = (e) => {
@@ -228,7 +226,7 @@ const HomePage = () => {
     setActiveAutocomplete(null);
   };
 
-  // --- 4. CRUD ĐIỂM CỨU TRỢ ---
+  // --- 4. CRUD POINTS ---
   const resetPointForm = () => {
     setNewPointName("");
     setNewPointAddress("");
@@ -241,7 +239,6 @@ const HomePage = () => {
     resetPointForm();
     setShowAddPointModal(true);
   };
-
   const openEditModal = (point) => {
     setEditingPoint(point);
     setNewPointName(point.name);
@@ -253,10 +250,9 @@ const HomePage = () => {
 
   const handleSavePoint = () => {
     if (!newPointName || !newPointAddress) {
-      alert("Vui lòng nhập tên và địa chỉ!");
+      alert("Vui lòng nhập đủ thông tin!");
       return;
     }
-
     let updatedPoints;
     if (editingPoint) {
       updatedPoints = reliefPoints.map((p) =>
@@ -270,7 +266,7 @@ const HomePage = () => {
             }
           : p
       );
-      alert("Đã cập nhật thành công!");
+      alert("Đã cập nhật!");
     } else {
       const newPoint = {
         id: Date.now(),
@@ -280,9 +276,8 @@ const HomePage = () => {
         status: newPointStatus,
       };
       updatedPoints = [...reliefPoints, newPoint];
-      alert("Đã thêm điểm mới!");
+      alert("Đã thêm mới!");
     }
-
     setReliefPoints(updatedPoints);
     localStorage.setItem("RELIEF_POINTS", JSON.stringify(updatedPoints));
     setShowAddPointModal(false);
@@ -290,14 +285,46 @@ const HomePage = () => {
   };
 
   const handleDeletePoint = (id) => {
-    if (window.confirm("Bạn có chắc muốn xóa điểm này?")) {
+    if (window.confirm("Xóa điểm này?")) {
       const updatedPoints = reliefPoints.filter((p) => p.id !== id);
       setReliefPoints(updatedPoints);
       localStorage.setItem("RELIEF_POINTS", JSON.stringify(updatedPoints));
     }
   };
 
-  // --- 5. XỬ LÝ TẠO YÊU CẦU SOS ---
+  const handleViewOnMap = async (point) => {
+    setIsLoading(true);
+    try {
+      if (!point.location) {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            point.address
+          )}&limit=1`
+        );
+        const data = await res.json();
+        if (data && data.length > 0) {
+          const lat = parseFloat(data[0].lat);
+          const lon = parseFloat(data[0].lon);
+          navigate("/map", {
+            state: { position: [lat, lon], name: point.name },
+          });
+        } else {
+          alert("Không tìm thấy tọa độ!");
+          navigate("/map");
+        }
+      } else {
+        navigate("/map", {
+          state: { position: point.location, name: point.name },
+        });
+      }
+    } catch (error) {
+      navigate("/map");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // --- 5. SOS REQUEST ---
   const handleCreateRequest = async () => {
     if (!user) {
       alert("Vui lòng đăng nhập.");
@@ -348,7 +375,7 @@ const HomePage = () => {
       };
       const updatedRequests = [...requests, newRequest];
       localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
-      alert("✅ Gửi yêu cầu thành công!");
+      alert("✅ Gửi thành công!");
       setShowRequestForm(false);
       setReqDesc("");
     } catch (error) {
@@ -364,7 +391,6 @@ const HomePage = () => {
     navigate("/");
   };
   const handleChooseProvince = async (province) => {
-    /* Giữ nguyên logic */
     setCurrentProvince(province);
     setShowLocaDropdown(false);
     setIsLoading(true);
@@ -407,27 +433,16 @@ const HomePage = () => {
     }
   };
 
-  // Logic Render Thông Báo
   const renderNotifications = () => {
     const isPending = user?.role === "volunteer-pending";
     const isOfficialVolunteer = user?.role === "volunteer";
     const hasMessages = notifications.length > 0;
-
-    if (!hasMessages && !isPending && !isOfficialVolunteer) {
+    if (!hasMessages && !isPending && !isOfficialVolunteer)
       return (
-        <div
-          style={{
-            padding: "20px",
-            color: "#999",
-            textAlign: "center",
-            fontStyle: "italic",
-          }}
-        >
+        <div style={{ padding: "20px", color: "#999", textAlign: "center" }}>
           Không có thông báo mới.
         </div>
       );
-    }
-
     return (
       <div>
         {isPending && (
@@ -438,19 +453,10 @@ const HomePage = () => {
               backgroundColor: "#fff7ed",
             }}
           >
-            <div
-              style={{
-                fontWeight: "bold",
-                color: "#b45309",
-                marginBottom: "5px",
-                fontSize: "0.9rem",
-              }}
-            >
+            <div style={{ fontWeight: "bold", color: "#b45309" }}>
               ⏳ Trạng thái hồ sơ
             </div>
-            <div style={{ fontSize: "0.85rem", color: "#333" }}>
-              Hồ sơ đang chờ xét duyệt.
-            </div>
+            <div style={{ fontSize: "0.85rem" }}>Hồ sơ đang chờ xét duyệt.</div>
           </div>
         )}
         {isOfficialVolunteer && (
@@ -461,17 +467,10 @@ const HomePage = () => {
               backgroundColor: "#f0fdf4",
             }}
           >
-            <div
-              style={{
-                fontWeight: "bold",
-                color: "#15803d",
-                marginBottom: "5px",
-                fontSize: "0.9rem",
-              }}
-            >
+            <div style={{ fontWeight: "bold", color: "#15803d" }}>
               ✅ Trạng thái hồ sơ
             </div>
-            <div style={{ fontSize: "0.85rem", color: "#333" }}>
+            <div style={{ fontSize: "0.85rem" }}>
               Bạn là Tình nguyện viên chính thức.
             </div>
           </div>
@@ -489,33 +488,16 @@ const HomePage = () => {
               style={{
                 fontWeight: "bold",
                 color: "#007bff",
-                marginBottom: "3px",
-                fontSize: "0.9rem",
                 display: "flex",
                 justifyContent: "space-between",
               }}
             >
               <span>🔔 Hệ thống</span>
-              <span
-                style={{
-                  fontSize: "0.7rem",
-                  color: "#999",
-                  fontWeight: "normal",
-                }}
-              >
+              <span style={{ fontSize: "0.7rem", color: "#999" }}>
                 {note.time.split(" ")[1]}
               </span>
             </div>
-            <div
-              style={{ fontSize: "0.85rem", color: "#333", lineHeight: "1.4" }}
-            >
-              {note.message}
-            </div>
-            <div
-              style={{ fontSize: "0.75rem", color: "#999", marginTop: "5px" }}
-            >
-              {note.time.split(" ")[0]}
-            </div>
+            <div style={{ fontSize: "0.85rem" }}>{note.message}</div>
           </div>
         ))}
       </div>
@@ -524,6 +506,8 @@ const HomePage = () => {
 
   const hasNotification =
     user?.role === "volunteer-pending" || notifications.length > 0;
+  const canManagePoints =
+    user && (user.role === "admin" || user.role === "volunteer");
 
   return (
     <div className="homepage">
@@ -581,7 +565,6 @@ const HomePage = () => {
                 marginLeft: "10px",
               }}
             >
-              {/* --- [ĐÃ KHÔI PHỤC] ICON THÔNG BÁO --- */}
               <div
                 className="notification-icon"
                 style={{
@@ -641,8 +624,6 @@ const HomePage = () => {
                   </div>
                 )}
               </div>
-
-              {/* User Profile */}
               <div
                 className="user-profile"
                 onClick={() => setShowProfileDropdown(!showProfileDropdown)}
@@ -694,9 +675,15 @@ const HomePage = () => {
             </div>
           </div>
         </div>
+
         <div
           className="relief-points-section"
-          style={{ padding: "40px 20px", maxWidth: "1200px", margin: "0 auto" }}
+          style={{
+            padding: "40px 20px",
+            width: "100%",
+            maxWidth: "1600px",
+            margin: "0 auto",
+          }}
         >
           <div
             className="top-bar-table"
@@ -711,28 +698,32 @@ const HomePage = () => {
               Danh Sách Các Điểm Cứu Trợ
             </h2>
 
-            <button
-              className="btn-add-support"
-              onClick={openAddModal}
-              style={{
-                backgroundColor: "#15803d",
-                color: "white",
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: "5px",
-                cursor: "pointer",
-                fontWeight: "bold",
-              }}
-            >
-              + Thêm điểm cứu trợ
-            </button>
+            {canManagePoints && (
+              <button
+                className="btn-add-support"
+                onClick={openAddModal}
+                style={{
+                  backgroundColor: "#15803d",
+                  color: "white",
+                  border: "none",
+                  padding: "10px 20px",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "1rem",
+                }}
+              >
+                + Thêm điểm cứu trợ
+              </button>
+            )}
           </div>
 
           <div
             style={{
               overflowX: "auto",
-              boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-              borderRadius: "8px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+              borderRadius: "10px",
+              border: "1px solid #eee",
             }}
           >
             <table
@@ -740,105 +731,187 @@ const HomePage = () => {
                 width: "100%",
                 borderCollapse: "collapse",
                 backgroundColor: "white",
+                minWidth: "900px",
               }}
             >
               <thead>
-                <tr style={{ backgroundColor: "#007bff", color: "white" }}>
-                  <th style={{ padding: "12px 15px", textAlign: "left" }}>
+                <tr
+                  style={{
+                    backgroundColor: "#f8f9fa",
+                    color: "#333",
+                    borderBottom: "2px solid #eee",
+                  }}
+                >
+                  <th
+                    style={{
+                      padding: "16px",
+                      textAlign: "left",
+                      fontSize: "0.95rem",
+                    }}
+                  >
                     Tên Điểm Cứu Trợ
                   </th>
-                  <th style={{ padding: "12px 15px", textAlign: "left" }}>
+                  <th
+                    style={{
+                      padding: "16px",
+                      textAlign: "left",
+                      fontSize: "0.95rem",
+                    }}
+                  >
                     Địa Chỉ
                   </th>
-                  <th style={{ padding: "12px 15px", textAlign: "left" }}>
+                  <th
+                    style={{
+                      padding: "16px",
+                      textAlign: "left",
+                      fontSize: "0.95rem",
+                    }}
+                  >
                     Loại Hình Hỗ Trợ
                   </th>
-                  <th style={{ padding: "12px 15px", textAlign: "center" }}>
+                  <th
+                    style={{
+                      padding: "16px",
+                      textAlign: "center",
+                      fontSize: "0.95rem",
+                    }}
+                  >
                     Trạng Thái
                   </th>
-
                   <th
-                    style={{ padding: "12px 15px", textAlign: "center" }}
-                  ></th>
+                    style={{
+                      padding: "16px",
+                      textAlign: "center",
+                      fontSize: "0.95rem",
+                    }}
+                  >
+                    Hành động
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {reliefPoints.length > 0 ? (
-                  reliefPoints.map((point) => (
+                  reliefPoints.map((point, index) => (
                     <tr
                       key={point.id}
-                      style={{ borderBottom: "1px solid #ddd" }}
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        backgroundColor: index % 2 === 0 ? "white" : "#fafafa",
+                      }}
                     >
                       <td
                         style={{
-                          padding: "12px 15px",
-                          fontWeight: "bold",
-                          color: "#333",
+                          padding: "16px",
+                          fontWeight: "600",
+                          color: "#2d3748",
                         }}
                       >
                         {point.name}
                       </td>
-                      <td style={{ padding: "12px 15px", color: "#555" }}>
+                      <td style={{ padding: "16px", color: "#4a5568" }}>
                         {point.address}
                       </td>
-                      <td style={{ padding: "12px 15px", color: "#555" }}>
+                      <td style={{ padding: "16px", color: "#4a5568" }}>
                         {point.type}
                       </td>
-                      <td style={{ padding: "12px 15px", textAlign: "center" }}>
+                      <td style={{ padding: "16px", textAlign: "center" }}>
                         <span
                           style={{
-                            padding: "5px 10px",
-                            borderRadius: "15px",
-                            fontSize: "0.85rem",
+                            padding: "6px 12px",
+                            borderRadius: "20px",
+                            fontSize: "0.8rem",
                             fontWeight: "600",
                             backgroundColor:
                               point.status === "Đang hoạt động"
-                                ? "#d1fae5"
-                                : "#fee2e2",
+                                ? "#def7ec"
+                                : "#fde8e8",
                             color:
                               point.status === "Đang hoạt động"
-                                ? "#065f46"
-                                : "#b91c1c",
+                                ? "#03543f"
+                                : "#9b1c1c",
+                            border:
+                              point.status === "Đang hoạt động"
+                                ? "1px solid #bcf0da"
+                                : "1px solid #fbd5d5",
                           }}
                         >
                           {point.status}
                         </span>
                       </td>
+                      <td style={{ padding: "16px", textAlign: "center" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          {/* Nút Xem vị trí */}
+                          <button
+                            onClick={() => handleViewOnMap(point)}
+                            style={{
+                              cursor: "pointer",
+                              border: "1px solid #3b82f6",
+                              background: "white",
+                              color: "#3b82f6",
+                              padding: "6px 12px",
+                              borderRadius: "6px",
+                              fontWeight: "600",
+                              fontSize: "0.85rem",
+                              transition: "all 0.2s",
+                            }}
+                          >
+                            Xem vị trí
+                          </button>
 
-                      <td style={{ padding: "12px 15px", textAlign: "center" }}>
-                        <button
-                          onClick={() => openEditModal(point)}
-                          style={{
-                            marginRight: "10px",
-                            cursor: "pointer",
-                            border: "none",
-                            background: "transparent",
-                            fontSize: "1.2rem",
-                          }}
-                          title="Sửa"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => handleDeletePoint(point.id)}
-                          style={{
-                            cursor: "pointer",
-                            border: "none",
-                            background: "transparent",
-                            fontSize: "1.2rem",
-                          }}
-                          title="Xóa"
-                        >
-                          🗑️
-                        </button>
+                          {canManagePoints && (
+                            <>
+                              <button
+                                onClick={() => openEditModal(point)}
+                                style={{
+                                  cursor: "pointer",
+                                  border: "1px solid #f59e0b",
+                                  background: "white",
+                                  color: "#f59e0b",
+                                  padding: "6px 12px",
+                                  borderRadius: "6px",
+                                  fontWeight: "600",
+                                  fontSize: "0.85rem",
+                                }}
+                              >
+                                Sửa
+                              </button>
+                              <button
+                                onClick={() => handleDeletePoint(point.id)}
+                                style={{
+                                  cursor: "pointer",
+                                  border: "1px solid #ef4444",
+                                  background: "white",
+                                  color: "#ef4444",
+                                  padding: "6px 12px",
+                                  borderRadius: "6px",
+                                  fontWeight: "600",
+                                  fontSize: "0.85rem",
+                                }}
+                              >
+                                Xóa
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td
-                      colSpan={5}
-                      style={{ padding: "20px", textAlign: "center" }}
+                      colSpan={canManagePoints ? 5 : 4}
+                      style={{
+                        padding: "30px",
+                        textAlign: "center",
+                        color: "#666",
+                        fontStyle: "italic",
+                      }}
                     >
                       Chưa có điểm cứu trợ nào.
                     </td>
@@ -850,8 +923,6 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* --- PHẦN BẢNG ĐIỂM CỨU TRỢ --- */}
-
       <footer className="site-footer">
         <div className="footer-bottom">
           <span>© 2025 Cứu Hộ App</span>
@@ -862,7 +933,7 @@ const HomePage = () => {
         </div>
       </footer>
 
-      {/* --- MODAL 1: GỬI YÊU CẦU SOS --- */}
+      {/* --- MODAL 1 & 2: GIỮ NGUYÊN --- */}
       {showRequestForm && (
         <Modal
           title="Gửi yêu cầu khẩn cấp"
@@ -881,20 +952,16 @@ const HomePage = () => {
               }}
             >
               <option>Cần lương thực</option>
-              <option>Cần thuốc men / Y tế</option>
-              <option>Cần sơ tán khẩn cấp</option>
-              <option>Cần áo phao / Thuyền</option>
               <option>Khác</option>
             </select>
           </div>
           <div className="form-group" ref={wrapperRef}>
             <label>
-              Địa chỉ hiện tại <span style={{ color: "red" }}>*</span>
+              Địa chỉ <span style={{ color: "red" }}>*</span>
             </label>
             <div className="address-input-container">
               <input
                 type="text"
-                placeholder="Nhập địa chỉ..."
                 value={reqAddress}
                 onChange={handleReqAddressChange}
                 onFocus={() =>
@@ -910,9 +977,6 @@ const HomePage = () => {
                 }}
                 autoComplete="off"
               />
-              <small style={{ color: "#666", fontSize: "0.85rem" }}>
-                📍 Hệ thống sẽ định vị lại.
-              </small>
               {showSuggestions &&
                 activeAutocomplete === "sos" &&
                 suggestions.length > 0 && (
@@ -934,17 +998,11 @@ const HomePage = () => {
             </div>
           </div>
           <div className="form-group">
-            <label>Mô tả chi tiết</label>
+            <label>Mô tả</label>
             <textarea
-              rows="4"
               value={reqDesc}
               onChange={(e) => setReqDesc(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                borderRadius: "5px",
-                border: "1px solid #ddd",
-              }}
+              style={{ width: "100%", padding: "10px" }}
             />
           </div>
           <button
@@ -953,17 +1011,14 @@ const HomePage = () => {
             onClick={handleCreateRequest}
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Đang xử lý..." : "Gửi Yêu Cầu"}
+            Gửi
           </button>
         </Modal>
       )}
 
-      {/* --- MODAL 2: THÊM / SỬA ĐIỂM CỨU TRỢ --- */}
       {showAddPointModal && (
         <Modal
-          title={
-            editingPoint ? "Cập nhật Điểm Cứu Trợ" : "Thêm Điểm Cứu Trợ Mới"
-          }
+          title={editingPoint ? "Cập nhật Điểm" : "Thêm Điểm Mới"}
           onClose={() => setShowAddPointModal(false)}
         >
           <div className="form-group">
@@ -974,12 +1029,7 @@ const HomePage = () => {
               type="text"
               value={newPointName}
               onChange={(e) => setNewPointName(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                borderRadius: "5px",
-                border: "1px solid #ddd",
-              }}
+              style={{ width: "100%", padding: "10px" }}
             />
           </div>
           <div className="form-group" ref={pointWrapperRef}>
@@ -1030,12 +1080,7 @@ const HomePage = () => {
               type="text"
               value={newPointType}
               onChange={(e) => setNewPointType(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                borderRadius: "5px",
-                border: "1px solid #ddd",
-              }}
+              style={{ width: "100%", padding: "10px" }}
             />
           </div>
           <div className="form-group">
@@ -1043,16 +1088,11 @@ const HomePage = () => {
             <select
               value={newPointStatus}
               onChange={(e) => setNewPointStatus(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                borderRadius: "5px",
-                border: "1px solid #ddd",
-              }}
+              style={{ width: "100%", padding: "10px" }}
             >
-              <option value="Đang hoạt động">Đang hoạt động</option>
-              <option value="Tạm ngưng">Tạm ngưng</option>
-              <option value="Đầy chỗ">Đầy chỗ</option>
+              <option>Đang hoạt động</option>
+              <option>Tạm ngưng</option>
+              <option>Đầy chỗ</option>
             </select>
           </div>
           <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
@@ -1061,7 +1101,7 @@ const HomePage = () => {
               onClick={handleSavePoint}
               style={{ backgroundColor: "#15803d", flex: 1 }}
             >
-              {editingPoint ? "Lưu Cập Nhật" : "Thêm Điểm"}
+              {editingPoint ? "Lưu" : "Thêm"}
             </button>
             <button
               onClick={() => {
@@ -1071,10 +1111,9 @@ const HomePage = () => {
               style={{
                 backgroundColor: "#666",
                 color: "white",
-                border: "none",
                 padding: "10px",
                 borderRadius: "5px",
-                cursor: "pointer",
+                border: "none",
               }}
             >
               Hủy

@@ -9,11 +9,8 @@ import {
   useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-
-// --- 1. IMPORT THƯ VIỆN CHỈ ĐƯỜNG ---
 import "leaflet-routing-machine";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
-
 import { useNavigate, useLocation } from "react-router-dom";
 import L from "leaflet";
 import Modal from "../../components/Modal";
@@ -42,44 +39,47 @@ const blueIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+// --- [MỚI] ICON MÀU XANH LÁ CHO ĐIỂM CỨU TRỢ ---
+const greenIcon = new L.Icon({
+  iconUrl:
+    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+// ------------------------------------------------
+
 const VIETNAM_BOUNDS = [
   [5.0, 101.0],
   [24.0, 118.0],
 ];
 
-// Component di chuyển view
 function ChangeView({ center, zoom }) {
   const map = useMap();
   map.setView(center, zoom);
   return null;
 }
 
-// --- 2. COMPONENT VẼ ĐƯỜNG DẪN (ROUTING) ---
 const RoutingMachine = ({ start, end }) => {
   const map = useMap();
-
   useEffect(() => {
     if (!map || !start || !end) return;
-
     const routingControl = L.Routing.control({
       waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
       routeWhileDragging: false,
       show: false,
       addWaypoints: false,
       fitSelectedRoutes: true,
-      lineOptions: {
-        styles: [{ color: "#6FA1EC", weight: 6 }],
-      },
+      lineOptions: { styles: [{ color: "#6FA1EC", weight: 6 }] },
       createMarker: function () {
         return null;
       },
     }).addTo(map);
-
-    return () => {
-      map.removeControl(routingControl);
-    };
+    return () => map.removeControl(routingControl);
   }, [map, start, end]);
-
   return null;
 };
 
@@ -90,6 +90,10 @@ const MapPage = () => {
   // --- STATES ---
   const [currentUser, setCurrentUser] = useState(null);
   const [requests, setRequests] = useState([]);
+
+  // --- [MỚI] STATE ĐIỂM CỨU TRỢ ---
+  const [reliefPoints, setReliefPoints] = useState([]);
+  // --------------------------------
 
   // State Form
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -113,7 +117,7 @@ const MapPage = () => {
   // State Routing
   const [activeRoute, setActiveRoute] = useState(null);
 
-  // --- [MỚI] STATE CHO AUTOCOMPLETE ---
+  // --- STATE CHO AUTOCOMPLETE ---
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const debounceRef = useRef(null);
@@ -137,16 +141,56 @@ const MapPage = () => {
 
   useEffect(() => {
     const storedUser = localStorage.getItem("currentUser");
-    if (storedUser) {
-      setCurrentUser(JSON.parse(storedUser));
-    }
+    if (storedUser) setCurrentUser(JSON.parse(storedUser));
     const storedRequests = localStorage.getItem("RELIEF_REQUESTS");
-    if (storedRequests) {
-      setRequests(JSON.parse(storedRequests));
-    }
+    if (storedRequests) setRequests(JSON.parse(storedRequests));
   }, []);
 
-  // Effect click outside để ẩn popup gợi ý
+  // --- [MỚI] EFFECT LOAD ĐIỂM CỨU TRỢ VÀ TỰ TÌM TỌA ĐỘ NẾU THIẾU ---
+  useEffect(() => {
+    const fetchReliefPoints = async () => {
+      const storedPoints = localStorage.getItem("RELIEF_POINTS");
+      if (storedPoints) {
+        const points = JSON.parse(storedPoints);
+
+        // Vì bên HomePage chỉ lưu địa chỉ text, ta cần convert sang tọa độ để hiện lên map
+        // Dùng Promise.all để xử lý bất đồng bộ
+        const pointsWithCoords = await Promise.all(
+          points.map(async (p) => {
+            // Nếu chưa có location nhưng có address, gọi API tìm
+            if (!p.location && p.address) {
+              try {
+                const res = await fetch(
+                  `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+                    p.address
+                  )}&limit=1`
+                );
+                const data = await res.json();
+                if (data && data.length > 0) {
+                  return {
+                    ...p,
+                    location: [
+                      parseFloat(data[0].lat),
+                      parseFloat(data[0].lon),
+                    ],
+                  };
+                }
+              } catch (e) {
+                console.error("Không tìm thấy tọa độ cho điểm:", p.name);
+              }
+            }
+            return p; // Trả về p (có thể có hoặc không có location)
+          })
+        );
+
+        setReliefPoints(pointsWithCoords);
+      }
+    };
+    fetchReliefPoints();
+  }, []);
+  // ------------------------------------------------------------------
+
+  // Click outside to close suggestion popup
   useEffect(() => {
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
@@ -157,10 +201,9 @@ const MapPage = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [wrapperRef]);
 
-  // --- EFFECT TÌM TUYẾN ĐƯỜNG ĐANG CHẠY ---
+  // Effect Routing
   useEffect(() => {
     if (!currentUser || requests.length === 0) return;
-
     const activeReq = requests.find((r) => {
       const isMyTask =
         (r.status === "in_progress" || r.status === "cancel_pending") &&
@@ -168,7 +211,6 @@ const MapPage = () => {
           r.rescuerPhone === currentUser.phone);
       return isMyTask;
     });
-
     if (activeReq && activeReq.rescuerLocation && activeReq.location) {
       setActiveRoute({
         start: activeReq.rescuerLocation,
@@ -215,7 +257,7 @@ const MapPage = () => {
       } catch (error) {
         console.error("Lỗi lấy gợi ý:", error);
       }
-    }, 500);
+    }, 200);
   };
 
   const handleSelectSuggestion = (item) => {
@@ -224,7 +266,6 @@ const MapPage = () => {
   };
 
   // --- HANDLERS ---
-
   const handleChooseProvince = async (province) => {
     setCurrentProvince(province);
     setShowLocaDropdown(false);
@@ -254,7 +295,6 @@ const MapPage = () => {
     }
   };
 
-  // --- HÀM CẬP NHẬT ĐỊA CHỈ (Đã sửa logic theo yêu cầu) ---
   const handleUpdateAddress = async () => {
     if (!newAddressInput.trim()) {
       alert("Vui lòng nhập địa chỉ bạn đang ở!");
@@ -274,18 +314,17 @@ const MapPage = () => {
         const lon = parseFloat(data[0].lon);
         const newCoords = [lat, lon];
 
-        // 1. Cập nhật user hiện tại
         const updatedUser = {
           ...currentUser,
-          address: data[0].display_name, // Lấy tên chuẩn từ API
+          address: data[0].display_name,
           location: newCoords,
         };
 
         setCurrentUser(updatedUser);
-        localStorage.setItem("currentUser", JSON.stringify(updatedUser)); // Lưu vào localStorage
-        setManualPosition(newCoords); // Map tự bay đến vị trí này
+        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+        setManualPosition(newCoords);
 
-        // Update DB gốc (nếu có)
+        // Update DB gốc
         const userDB = JSON.parse(
           localStorage.getItem("USER_DATABASE") || "{}"
         );
@@ -295,14 +334,13 @@ const MapPage = () => {
           localStorage.setItem("USER_DATABASE", JSON.stringify(userDB));
         }
 
-        // Nếu là Volunteer và đang làm nhiệm vụ -> Cập nhật vào đơn hàng
+        // Nếu là Volunteer -> Cập nhật vị trí trong đơn hàng
         if (currentUser.role === "volunteer") {
           const activeReqIndex = requests.findIndex(
             (r) =>
               (r.status === "in_progress" || r.status === "cancel_pending") &&
               r.rescuerPhone === currentUser.phone
           );
-
           if (activeReqIndex !== -1) {
             const updatedRequests = [...requests];
             updatedRequests[activeReqIndex] = {
@@ -321,9 +359,7 @@ const MapPage = () => {
         setShowUpdateAddressModal(false);
         setNewAddressInput("");
       } else {
-        alert(
-          "❌ Không tìm thấy địa chỉ này trên bản đồ!\n\nGợi ý: Hãy nhập chi tiết hơn (Số nhà, Đường, Quận/Huyện, Tỉnh/Thành)."
-        );
+        alert("❌ Không tìm thấy địa chỉ này trên bản đồ!");
       }
     } catch (error) {
       console.error("Lỗi tìm kiếm tọa độ:", error);
@@ -641,7 +677,7 @@ const MapPage = () => {
           </Marker>
         )}
 
-        {/* 2. MARKER ĐƠN HÀNG (QUAN TRỌNG: RESTORED FULL LOGIC POPUP) */}
+        {/* 2. MARKER ĐƠN HÀNG (SOS Requests) */}
         {requests.map((req) => {
           if (
             req.status !== "approved" &&
@@ -674,7 +710,7 @@ const MapPage = () => {
                   Chi tiết: {req.description} <br />
                   Địa chỉ: {req.address} <br />
                   {/* Nút hủy cho Citizen */}
-                  {isCitizenFunc && (
+                  {currentUser && currentUser.phone === req.userId && (
                     <button
                       onClick={() => handleCitizenCancelRequest(req)}
                       style={{
@@ -692,7 +728,7 @@ const MapPage = () => {
                       ✅ Tôi đã an toàn / Hủy yêu cầu
                     </button>
                   )}
-                  {/* Nút hành động cho Volunteer - PHẦN BẠN CẦN GIỮ LẠI */}
+                  {/* Nút hành động cho Volunteer */}
                   {isVolunteerFunc && (
                     <div style={{ marginTop: "10px", textAlign: "center" }}>
                       {req.status === "approved" && (
@@ -831,6 +867,40 @@ const MapPage = () => {
           );
         })}
 
+        {/* --- [MỚI] 3. MARKER ĐIỂM CỨU TRỢ (XANH LÁ) --- */}
+        {reliefPoints.map((point) => {
+          // Chỉ hiện những điểm đã có tọa độ
+          if (!point.location) return null;
+
+          return (
+            <Marker
+              key={`point-${point.id}`}
+              position={point.location}
+              icon={greenIcon}
+              zIndexOffset={800}
+            >
+              <Tooltip direction="top" offset={[0, -40]} opacity={1}>
+                <span>⛺ {point.name}</span>
+              </Tooltip>
+              <Popup>
+                <strong>{point.name}</strong> <br />
+                📍 {point.address} <br />
+                <hr style={{ margin: "5px 0" }} />
+                📦 Hỗ trợ: {point.type} <br />
+                <span
+                  style={{
+                    color: point.status === "Đang hoạt động" ? "green" : "red",
+                    fontWeight: "bold",
+                  }}
+                >
+                  ● {point.status}
+                </span>
+              </Popup>
+            </Marker>
+          );
+        })}
+        {/* ----------------------------------------------- */}
+
         {incomingPosition &&
           JSON.stringify(incomingPosition) !==
             JSON.stringify(currentUser?.location) && (
@@ -930,8 +1000,8 @@ const MapPage = () => {
           onClose={() => setShowUpdateAddressModal(false)}
         >
           <p style={{ color: "#dc2626", marginBottom: "10px" }}>
-            ⚠️ <strong>Lưu ý:</strong> Địa chỉ càng chi tiết, hệ thống càng xác
-            định tọa độ chính xác!
+            ⚠️ <strong>Lưu ý:</strong> Nhập địa chỉ chi tiết để định vị chính
+            xác!
           </p>
           <div className="form-group" ref={wrapperRef}>
             <label>Địa chỉ hiện tại của bạn:</label>
@@ -940,7 +1010,7 @@ const MapPage = () => {
             <div className="address-input-container">
               <input
                 type="text"
-                placeholder="Ví dụ: Số nhà 10, ngách 5, phố X, Phường Y..."
+                placeholder="Nhập địa chỉ..."
                 value={newAddressInput}
                 onChange={handleAddressInputChange} // Đã gắn hàm xử lý gợi ý
                 onFocus={() => newAddressInput && setShowSuggestions(true)}
