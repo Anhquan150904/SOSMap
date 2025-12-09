@@ -21,6 +21,8 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IReportRepository, ReportRepository>();
 builder.Services.AddScoped<IRescueTaskRepository, RescueTaskRepository>();
 builder.Services.AddScoped<ISafetyPointRepository, SafetyPointRepository>();
+builder.Services.AddScoped<AdminService>();
+
 
 // 3. Services
 builder.Services.AddScoped<ReportService>();

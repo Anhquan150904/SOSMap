@@ -48,7 +48,7 @@ namespace Sos.Application.Services
 
             await _repo.AddAsync(report);
 
-            await _notification.NotifyVolunteersReportCreated(new
+            await _notification.NotifyReportCreatedAsync(new
             {
                 id = report.Id,
                 level = report.Level,
@@ -120,8 +120,12 @@ namespace Sos.Application.Services
                 report.UpdatedAt = DateTime.UtcNow;
                 await _repo.UpdateAsync(report);
             }
+            var payload = new
+            {
+                Message = $"Admin đã chấp nhận yêu cầu hủy Task {taskId} của bạn",
 
-            await _notification.NotifyVolunteersTaskCanceled(new { taskId, reportId = task.ReportId });
+            };
+            await _notification.NotifyTaskCanceled(volunteerId, payload);
         }
 
         public async Task RequestCancelTaskAsync(Guid taskId, Guid volunteerId, string? note)
@@ -135,7 +139,22 @@ namespace Sos.Application.Services
             task.UpdatedAt = DateTime.UtcNow;
             await _taskRepo.UpdateAsync(task);
 
-            await _notification.NotifyVolunteersTaskCanceled(new { taskId, reportId = task.ReportId });
+            var volunteer = await _userRepo.GetByIdAsync(volunteerId);
+            var report = await _repo.GetByIdAsync(task.ReportId);
+            var payload = new
+            {
+                name = volunteer?.FullName,
+                id = volunteerId,
+                phone = volunteer?.Phone,
+                taskId = task.Id,
+                reportName = report?.Name,
+                reportPhone = report?.Phone,
+                reportAddress = report?.Address,
+                Note = note
+
+            };
+
+            await _notification.NotifyVolunteersRequestTaskCanceled(payload);
         }
 
         public async Task MarkTaskDoneAsync(Guid taskId, Guid volunteerId)
