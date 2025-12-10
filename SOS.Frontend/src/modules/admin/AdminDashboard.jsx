@@ -113,7 +113,7 @@ const AdminDashboard = () => {
 
   // --- HELPER: RENDER BẢNG DỮ LIỆU ---
   const renderTable = (data, columns, renderRow) => (
-    <table className="admin-table">
+    <table className="adminf-table">
       <thead>
         <tr>
           {columns.map((col, idx) => (
@@ -256,7 +256,7 @@ const AdminDashboard = () => {
                     <td>
                       <span className="badge badge-type">{req.type}</span>
                     </td>
-                    <td>
+                    <td  style={{ textAlign: "center" }}>
                       <span className={`badge status-${req.status}`}>
                         {req.status === "pending"
                           ? "Chờ duyệt"
@@ -264,10 +264,12 @@ const AdminDashboard = () => {
                           ? "Đang tìm TNV"
                           : req.status === "in_progress"
                           ? "Đang cứu hộ"
+                          : req.status === "canceled"
+                          ? "Hủy"
                           : "Hoàn thành"}
                       </span>
                     </td>
-                    <td>{req.rescuerName ? req.rescuerName : "-"}</td>
+                    <td style={{textAlign: "center"}}>{req.rescuerName ? req.rescuerName : "X"}</td>
                     <td>
                       {req.status === "pending" && (
                         <button
@@ -276,6 +278,15 @@ const AdminDashboard = () => {
                         >
                           Duyệt Đơn
                         </button>
+                      )}
+                      {req.status === "canceled" && (
+                        <span style={{ color: "red" }}>Người yêu cầu đã an toàn </span>
+                      )}  
+                      {req.status === "successfully_completed" && (
+                        <span style={{ color: "green" }}>Đã hoàn thành </span>
+                      )}
+                      {req.status !== "pending" && req.status !== "canceled" &&(
+                        <span style={{ color: "green" }}>Đã hoàn thành </span>
                       )}
                     </td>
                   </tr>

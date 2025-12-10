@@ -113,6 +113,7 @@
 .status-in_progress { background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
 .status-completed { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
 .status-cancel_pending { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+.status-canceled { background: #fce7f3; color: #be185d; border: 1px solid #fbcfe8; }
 
 .role-admin { background: #1e293b; color: #fff; }
 .role-volunteer { background: #dcfce7; color: #15803d; }
