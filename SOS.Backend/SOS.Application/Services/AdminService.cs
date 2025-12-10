@@ -58,7 +58,8 @@ namespace Sos.Application.Services
             var user = await _userRepo.GetByIdAsync(userId);
             if (user == null) throw new KeyNotFoundException("User not found");
 
-            user.Role = "active";
+            user.Status = "active";
+            await _userRepo.UpdateAsync(user);
         }
 
 
