@@ -92,6 +92,7 @@ const HomePage = () => {
       let currentUser = JSON.parse(sessionUserStr);
       const userDB = JSON.parse(localStorage.getItem("USER_DATABASE") || "{}");
       const officialKey = `${currentUser.phone}_volunteer`;
+      console.log("Hồ sơ người dùng hiện tại:", currentUser);
 
       if (userDB[officialKey] && currentUser.role === "volunteer-pending") {
         localStorage.setItem(
@@ -952,6 +953,9 @@ const HomePage = () => {
               }}
             >
               <option>Cần lương thực</option>
+              <option>Cần thuốc men / Y tế</option>
+              <option>Cần sơ tán khẩn cấp</option>
+              <option>Cần áo phao / Thuyền</option>
               <option>Khác</option>
             </select>
           </div>

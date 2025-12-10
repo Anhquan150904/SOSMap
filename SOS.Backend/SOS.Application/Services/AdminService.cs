@@ -30,7 +30,7 @@ namespace Sos.Application.Services
             _geomFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
         }
 
-        public async Task CancelTaskAsync(Guid taskId, Guid volunteerId, string? note)
+        public async Task CancelTaskAsync(Guid taskId, Guid volunteerId)
         {
             var task = await _taskRepo.GetByIdAsync(taskId);
             if (task == null) throw new KeyNotFoundException("Task not found");
@@ -45,8 +45,12 @@ namespace Sos.Application.Services
                 report.UpdatedAt = DateTime.UtcNow;
                 await _repo.UpdateAsync(report);
             }
+            var payload = new
+            {
+                Message = $"Admin đã chấp nhận yêu cầu hủy Task {taskId} của bạn",
 
-            await _notification.NotifyVolunteersTaskCanceled(new { taskId, reportId = task.ReportId });
+            };
+            await _notification.NotifyTaskCanceled(volunteerId, payload);
         }
 
         public async Task AcceptRequestVolunteer(Guid userId)
