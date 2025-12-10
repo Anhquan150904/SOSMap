@@ -212,6 +212,20 @@
 
 /* HERO SECTION - MÀU XANH LÁ */
 .hero-section {
+
+    height: calc(100vh - 59px - 70px);
+    overflow-y: auto;
+}
+
+.lst-btn-hp {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 10px;
+
+}
+
+.hero-content {
+
     background: linear-gradient(135deg, #00b09b, #96c93d);
     /* Gradient xanh */
     padding: 80px 20px;
@@ -219,9 +233,9 @@
     color: white;
 }
 
-.hero-content {
-    max-width: 800px;
+.hero-content--text {
     margin: 0 auto;
+    max-width: 800px;
 }
 
 .hero-content h1 {
@@ -239,6 +253,18 @@
 .btn-hero {
     background: white;
     color: #28a745;
+    padding: 12px 30px;
+    border: none;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.btn-request {
+    background: rgb(255, 0, 0);
+    color: #ffffff;
     padding: 12px 30px;
     border: none;
     border-radius: 25px;
@@ -291,9 +317,10 @@
 
 /* FOOTER */
 .site-footer {
-    padding: 60px 20px 20px;
+
     text-align: center;
     background-color: #fff;
+
 }
 
 .partners-list p {
@@ -310,8 +337,8 @@
 }
 
 .footer-bottom {
-    margin-top: 60px;
-    padding-top: 20px;
+
+
     border-top: 1px solid #eee;
     background-color: #1f2937;
     /* Màu đậm cuối trang giống ảnh */
@@ -322,8 +349,7 @@
 /* ... Các code cũ của footer giữ nguyên ... */
 
 .footer-bottom {
-    margin-top: 60px;
-    padding-top: 20px;
+
     border-top: 1px solid #374151;
     /* Đổi màu viền cho tiệp màu nền tối */
     background-color: #1f2937;
@@ -411,18 +437,51 @@
 }
 
 .red-dot {
-  position: absolute; top: -2px; right: -2px;
-  width: 10px; height: 10px; background: #dc2626;
-  border-radius: 50%; border: 2px solid white;
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    background: #dc2626;
+    border-radius: 50%;
+    border: 2px solid white;
 }
+
 .dropdown-noti {
-  position: absolute; top: 35px; right: -10px;
-  width: 320px; background: white;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  border-radius: 8px; z-index: 1000; border: 1px solid #eee;
-  overflow: hidden; max-height: 400px; overflow-y: auto;
+    position: absolute;
+    top: 35px;
+    right: -10px;
+    width: 320px;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    z-index: 1000;
+    border: 1px solid #eee;
+    overflow: hidden;
+    max-height: 400px;
+    overflow-y: auto;
 }
+
 .noti-header {
-  padding: 10px; border-bottom: 1px solid #eee;
-  font-weight: bold; background: #f9fafb;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    font-weight: bold;
+    background: #f9fafb;
+}
+
+.btn-add-support {
+    border: none;
+    padding: 5px 8px;
+    background: #1e88e5;
+    color: white;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid #fff;
+}
+
+.btn-add-support:hover {
+    background: white;
+    color: #1e88e5;
+    border: 1px solid #1e88e5;
 }

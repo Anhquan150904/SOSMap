@@ -10,7 +10,6 @@ namespace Sos.Domain.Entities
         public string Role { get; set; } = "citizen"; // citizen|volunteer|admin
         public string Status { get; set; } = "active"; // active|blocked
 
-        public Point? LastKnownLocation { get; set; } // geography(Point,4326)
         public string? Address { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

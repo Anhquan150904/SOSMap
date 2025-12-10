@@ -51,5 +51,10 @@ namespace Sos.Infrastructure.Repositories
                 .Take(limit)
                 .ToListAsync(ct);
         }
+
+        public async Task<SOSReport?> GetByStatusAsync(string status, CancellationToken ct = default)
+        {
+            return await _db.SOSReports.FirstOrDefaultAsync(r => r.Status == status, ct);
+        }
     }
 }

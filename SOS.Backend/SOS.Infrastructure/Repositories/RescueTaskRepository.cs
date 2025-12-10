@@ -31,5 +31,16 @@ namespace Sos.Infrastructure.Repositories
             _db.RescueTasks.Update(task);
             await _db.SaveChangesAsync(ct);
         }
+
+        public async Task DeleteTaskById(Guid taskId, CancellationToken ct = default)
+        {
+            await _db.RescueTasks
+                .Where(t => t.Id == taskId)
+                .ExecuteDeleteAsync(ct);
+        }
+        public async Task<RescueTask?> GetByStatusAsync(string status, CancellationToken ct = default)
+        {
+            return await _db.RescueTasks.FirstOrDefaultAsync(t => t.Status == status, ct);
+        }
     }
 }

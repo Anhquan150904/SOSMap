@@ -61,6 +61,14 @@ namespace Sos.WebApi.Controllers
             return Ok(list);
         }
 
+        // Lấy danh sách theo status
+        [HttpGet("{status}/status")]
+        public async Task<IActionResult> GetByStatus(string status)
+        {
+            var list = await _service.GetReportsByStatusAsync(status);
+            return Ok(list);
+        }
+
         // Nhận nhiệm vụ cứu hộ
         [HttpPost("{reportId:guid}/accept")]
         public async Task<IActionResult> Accept(Guid reportId, [FromBody] TaskActionRequest req)
@@ -69,20 +77,27 @@ namespace Sos.WebApi.Controllers
             return Ok(new { taskId });
         }
 
-        // Hủy nhiệm vụ cứu hộ
-        [HttpPost("tasks/{taskId:guid}/cancel")]
-        public async Task<IActionResult> CancelTask(Guid taskId, [FromBody] TaskActionRequest req)
+        // yêu cầu hủy nhiệm vụ cứu hộ
+        [HttpPost("tasks/{taskId:guid}/request-cancel")]
+        public async Task<IActionResult> RequestCancelTask(Guid taskId, [FromBody] TaskActionRequest req)
         {
-            await _service.CancelTaskAsync(taskId, req.VolunteerId, req.note);
+            await _service.RequestCancelTaskAsync(taskId, req.VolunteerId, req.note);
             return Ok(new { canceled = true });
         }
-
         // Hoàn thành nhiệm vụ cứu hộ
         [HttpPost("tasks/{taskId:guid}/done")]
         public async Task<IActionResult> DoneTask(Guid taskId, [FromBody] TaskActionRequest req)
         {
             await _service.MarkTaskDoneAsync(taskId, req.VolunteerId);
             return Ok(new { done = true });
+        }
+
+        // Lấy nhiệm vụ cứu hộ theo status
+        [HttpGet("tasks/{status}/status")]
+        public async Task<IActionResult> GetTasksByStatus(string status)
+        {
+            var list = await _service.GetTasksByStatusAsync(status);
+            return Ok(list);
         }
     }
 }
