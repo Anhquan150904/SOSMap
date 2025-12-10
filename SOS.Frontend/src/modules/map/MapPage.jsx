@@ -50,7 +50,6 @@ const greenIcon = new L.Icon({
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
 });
-// ------------------------------------------------
 
 const VIETNAM_BOUNDS = [
   [5.0, 101.0],
@@ -93,7 +92,6 @@ const MapPage = () => {
 
   // --- [MỚI] STATE ĐIỂM CỨU TRỢ ---
   const [reliefPoints, setReliefPoints] = useState([]);
-  // --------------------------------
 
   // State Form
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -123,6 +121,9 @@ const MapPage = () => {
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
 
+  console.log("Current User:", currentUser);
+  console.log("New Address Input:", newAddressInput);
+
   // --- EFFECTS ---
   useEffect(() => {
     const fetchApiProvinces = async () => {
@@ -146,18 +147,14 @@ const MapPage = () => {
     if (storedRequests) setRequests(JSON.parse(storedRequests));
   }, []);
 
-  // --- [MỚI] EFFECT LOAD ĐIỂM CỨU TRỢ VÀ TỰ TÌM TỌA ĐỘ NẾU THIẾU ---
+  // --- EFFECT LOAD ĐIỂM CỨU TRỢ ---
   useEffect(() => {
     const fetchReliefPoints = async () => {
       const storedPoints = localStorage.getItem("RELIEF_POINTS");
       if (storedPoints) {
         const points = JSON.parse(storedPoints);
-
-        // Vì bên HomePage chỉ lưu địa chỉ text, ta cần convert sang tọa độ để hiện lên map
-        // Dùng Promise.all để xử lý bất đồng bộ
         const pointsWithCoords = await Promise.all(
           points.map(async (p) => {
-            // Nếu chưa có location nhưng có address, gọi API tìm
             if (!p.location && p.address) {
               try {
                 const res = await fetch(
@@ -179,16 +176,14 @@ const MapPage = () => {
                 console.error("Không tìm thấy tọa độ cho điểm:", p.name);
               }
             }
-            return p; // Trả về p (có thể có hoặc không có location)
+            return p;
           })
         );
-
         setReliefPoints(pointsWithCoords);
       }
     };
     fetchReliefPoints();
   }, []);
-  // ------------------------------------------------------------------
 
   // Click outside to close suggestion popup
   useEffect(() => {
@@ -709,8 +704,9 @@ const MapPage = () => {
                   <br />
                   Chi tiết: {req.description} <br />
                   Địa chỉ: {req.address} <br />
-                  {/* Nút hủy cho Citizen */}
-                  {currentUser && currentUser.phone === req.userId && (
+                  {/* --- [SỬA LẠI ĐÚNG YÊU CẦU] --- */}
+                  {/* Chỉ hiện nút Hủy nếu User đang đăng nhập LÀ chủ nhân của request NÀY */}
+                  {currentUser && currentUser.role === "citizen" && currentUser.phone === req.userId && (
                     <button
                       onClick={() => handleCitizenCancelRequest(req)}
                       style={{
@@ -728,6 +724,8 @@ const MapPage = () => {
                       ✅ Tôi đã an toàn / Hủy yêu cầu
                     </button>
                   )}
+                  {/* ---------------------------------- */}
+
                   {/* Nút hành động cho Volunteer */}
                   {isVolunteerFunc && (
                     <div style={{ marginTop: "10px", textAlign: "center" }}>
@@ -869,7 +867,6 @@ const MapPage = () => {
 
         {/* --- [MỚI] 3. MARKER ĐIỂM CỨU TRỢ (XANH LÁ) --- */}
         {reliefPoints.map((point) => {
-          // Chỉ hiện những điểm đã có tọa độ
           if (!point.location) return null;
 
           return (
@@ -899,7 +896,6 @@ const MapPage = () => {
             </Marker>
           );
         })}
-        {/* ----------------------------------------------- */}
 
         {incomingPosition &&
           JSON.stringify(incomingPosition) !==
@@ -993,7 +989,7 @@ const MapPage = () => {
         </Modal>
       )}
 
-      {/* MODAL 3: CẬP NHẬT ĐỊA CHỈ (CÓ AUTOCOMPLETE) */}
+      {/* MODAL 3: CẬP NHẬT ĐỊA CHỈ */}
       {showUpdateAddressModal && (
         <Modal
           title="Cập nhật Vị trí Hiện tại"
@@ -1005,14 +1001,12 @@ const MapPage = () => {
           </p>
           <div className="form-group" ref={wrapperRef}>
             <label>Địa chỉ hiện tại của bạn:</label>
-
-            {/* CONTAINER CHO INPUT VÀ DROPDOWN GỢI Ý */}
             <div className="address-input-container">
               <input
                 type="text"
                 placeholder="Nhập địa chỉ..."
                 value={newAddressInput}
-                onChange={handleAddressInputChange} // Đã gắn hàm xử lý gợi ý
+                onChange={handleAddressInputChange}
                 onFocus={() => newAddressInput && setShowSuggestions(true)}
                 style={{
                   width: "100%",
@@ -1022,8 +1016,6 @@ const MapPage = () => {
                 }}
                 autoComplete="off"
               />
-
-              {/* POPUP GỢI Ý */}
               {showSuggestions && suggestions.length > 0 && (
                 <div className="suggestions-dropdown">
                   {suggestions.map((item, index) => (
