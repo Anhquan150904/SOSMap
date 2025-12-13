@@ -1,5 +1,5 @@
 ﻿
-namespace SOS.Domain.Interfaces
+namespace SOS.Service.Interfaces
 {
     public interface INotificationService
     {

@@ -1,13 +1,17 @@
 ﻿// Program.cs
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Sos.Application.Interfaces;
+using Sos.Application.Service.Interfaces;
 using Sos.Application.Services;
 using Sos.Domain.Interfaces;
+using Sos.Infrastructure.Hubs;
 using Sos.Infrastructure.Persistence;
+using Sos.Infrastructure.Redis;
 using Sos.Infrastructure.Repositories;
-using Sos.WebApi.Hubs;
-using SOS.Domain.Interfaces;
+using Sos.Service.Interfaces;
+using SOS.Service.Interfaces;
 using StackExchange.Redis;
-using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,10 +23,15 @@ builder.Services.AddDbContext<SosDbContext>(opts =>
 // 2. Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IReportRepository, ReportRepository>();
+builder.Services.AddSingleton<IOtpStore, RedisOtpStore>();
+builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<IRescueTaskRepository, RescueTaskRepository>();
 builder.Services.AddScoped<ISafetyPointRepository, SafetyPointRepository>();
-builder.Services.AddScoped<AdminService>();
-
+builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IAuthService ,AuthService>();
+builder.Services.AddScoped<IUserService ,UserService>();
+builder.Services.AddScoped<ISafetyService, SafetyService>();
 
 // 3. Services
 builder.Services.AddScoped<ReportService>();
