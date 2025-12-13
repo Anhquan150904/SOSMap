@@ -1,17 +1,15 @@
 ﻿using NetTopologySuite;
 using NetTopologySuite.Geometries;
-using Sos.Domain.Entities;
 using Sos.Domain.Interfaces;
-using SOS.Domain.Interfaces;
+using SOS.Service.Interfaces;
 
 namespace Sos.Application.Services
 {
-    public class AdminService
+    public class AdminService : IAdminService
     {
         private readonly IReportRepository _repo;
         private readonly IUserRepository _userRepo;
         private readonly IRescueTaskRepository _taskRepo;
-        private readonly ISafetyPointRepository _safetyRepo;
         private readonly INotificationService _notification;
         private readonly GeometryFactory _geomFactory;
 
@@ -19,13 +17,11 @@ namespace Sos.Application.Services
             IReportRepository repo,
             IUserRepository userRepo,
             IRescueTaskRepository taskRepo,
-            ISafetyPointRepository safetyRepo,
             INotificationService notification)
         {
             _repo = repo;
             _userRepo = userRepo;
             _taskRepo = taskRepo;
-            _safetyRepo = safetyRepo;
             _notification = notification;
             _geomFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
         }

@@ -1,7 +1,7 @@
 ﻿// Services/SignalRNotificationService.cs
 using Microsoft.AspNetCore.SignalR;
-using Sos.WebApi.Hubs;
-using SOS.Domain.Interfaces;
+using SOS.Service.Interfaces;
+using Sos.Infrastructure.Hubs;
 
 namespace Sos.Application.Services
 {

@@ -52,9 +52,13 @@ namespace Sos.Infrastructure.Repositories
                 .ToListAsync(ct);
         }
 
-        public async Task<SOSReport?> GetByStatusAsync(string status, CancellationToken ct = default)
+        public async Task<IEnumerable<SOSReport>> GetByStatusAsync(string status, CancellationToken ct = default)
         {
-            return await _db.SOSReports.FirstOrDefaultAsync(r => r.Status == status, ct);
+            return await _db.SOSReports
+                .Where(r => r.Status == status)
+                .OrderByDescending(r => r.CreatedAt)
+                .ToListAsync();
         }
+
     }
 }

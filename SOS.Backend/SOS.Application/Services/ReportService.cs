@@ -1,89 +1,96 @@
-﻿// File: Sos.Application/Services/ReportService.cs
-using NetTopologySuite;
-using NetTopologySuite.Geometries;
+﻿using Sos.Application.DTOs.ReportSosDto;
+using Sos.Application.Interfaces;
 using Sos.Domain.Entities;
 using Sos.Domain.Interfaces;
-using SOS.Domain.Interfaces;
+using SOS.Service.Interfaces;
 
 namespace Sos.Application.Services
 {
-    public class ReportService
+    public class ReportService : IReportService
     {
-        private readonly IReportRepository _repo;
+        private readonly IReportRepository _reportRepo;
         private readonly IUserRepository _userRepo;
         private readonly IRescueTaskRepository _taskRepo;
-        private readonly ISafetyPointRepository _safetyRepo;
         private readonly INotificationService _notification;
-        private readonly GeometryFactory _geomFactory;
 
         public ReportService(
-            IReportRepository repo,
+            IReportRepository reportRepo,
             IUserRepository userRepo,
             IRescueTaskRepository taskRepo,
-            ISafetyPointRepository safetyRepo,
             INotificationService notification)
         {
-            _repo = repo;
+            _reportRepo = reportRepo;
             _userRepo = userRepo;
             _taskRepo = taskRepo;
-            _safetyRepo = safetyRepo;
             _notification = notification;
-            _geomFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
         }
 
-        public async Task<Guid> CreateReportAsync(Guid userId, string? name, string? phone, string? address, string? details, string level = "critical")
+        // =========================
+        // CREATE REPORT
+        // =========================
+        public async Task<Guid> CreateReportAsync(CreateReportRequest req)
         {
+            var user = await _userRepo.GetByPhoneAsync(req.Phone);
+            if (user == null)
+                throw new InvalidOperationException("User must authenticate first");
+
             var report = new SOSReport
             {
-                UserId = userId,
-                Name = name,
-                Phone = phone,
-                Address = address,
-                Details = details,
-                Level = level,
+                UserId = user.Id,
+                Name = req.Name,
+                Phone = req.Phone,
+                Address = req.Address,
+                Details = req.Details,
+                Level = req.Level ?? "critical",
                 Status = "pending",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
 
-            await _repo.AddAsync(report);
+            await _reportRepo.AddAsync(report);
 
             await _notification.NotifyReportCreatedAsync(new
             {
                 id = report.Id,
                 level = report.Level,
                 status = report.Status,
-                details = report.Details,
                 address = report.Address
             });
 
             return report.Id;
         }
 
-        public async Task<IEnumerable<object>> GetNearbyAsync(string province)
+        public async Task<ReportSummaryDto?> GetByIdAsync(Guid id)
         {
-            var res = await _repo.FindNearbyAsync(province);
-            return res.Select(r => new {
-                id = r.Id,
-                userId = r.UserId,
-                name = r.Name,
-                phone = r.Phone,
-                status = r.Status,
-                level = r.Level,
-                details = r.Details,
-                address = r.Address,
-                createdAt = r.CreatedAt
-            });
+            var r = await _reportRepo.GetByIdAsync(id);
+            if (r == null) return null;
+
+            return MapReport(r);
         }
+
+        public async Task<IEnumerable<ReportSummaryDto>> GetNearbyAsync(string province)
+        {
+            var res = await _reportRepo.FindNearbyAsync(province);
+            return res.Select(MapReport);
+        }
+
+        public async Task<IEnumerable<ReportSummaryDto>> GetReportsByStatusAsync(string status)
+        {
+            var res = await _reportRepo.GetByStatusAsync(status);
+            return res.Select(MapReport);
+        }
+
 
         public async Task<Guid> AcceptTaskAsync(Guid reportId, Guid volunteerId)
         {
-            var report = await _repo.GetByIdAsync(reportId);
-            if (report == null) throw new KeyNotFoundException("Report not found");
-            if (report.Status == "completed" || report.Status == "canceled") throw new InvalidOperationException("Cannot accept closed report");
+            var report = await _reportRepo.GetByIdAsync(reportId)
+                ?? throw new KeyNotFoundException("Report not found");
 
-            var existing = await _taskRepo.GetByReportIdAsync(reportId);
-            if (existing != null) throw new InvalidOperationException("Already assigned");
+            if (report.Status is "completed" or "canceled")
+                throw new InvalidOperationException("Report closed");
+
+            if (await _taskRepo.GetByReportIdAsync(reportId) != null)
+                throw new InvalidOperationException("Task already assigned");
 
             var task = new RescueTask
             {
@@ -98,123 +105,88 @@ namespace Sos.Application.Services
 
             report.Status = "accepted";
             report.UpdatedAt = DateTime.UtcNow;
-            await _repo.UpdateAsync(report);
+            await _reportRepo.UpdateAsync(report);
 
             await _notification.NotifyAdminsTaskAccepted(new { reportId, volunteerId });
 
             return task.Id;
         }
 
-        public async Task CancelTaskAsync(Guid taskId, Guid volunteerId, string? note)
-        {
-            var task = await _taskRepo.GetByIdAsync(taskId);
-            if (task == null) throw new KeyNotFoundException("Task not found");
-            if (task.VolunteerId != volunteerId) throw new UnauthorizedAccessException("Not your task");
-
-            await _taskRepo.DeleteTaskById(taskId);
-
-            var report = await _repo.GetByIdAsync(task.ReportId);
-            if (report != null)
-            {
-                report.Status = "accepted";
-                report.UpdatedAt = DateTime.UtcNow;
-                await _repo.UpdateAsync(report);
-            }
-            var payload = new
-            {
-                Message = $"Admin đã chấp nhận yêu cầu hủy Task {taskId} của bạn",
-
-            };
-            await _notification.NotifyTaskCanceled(volunteerId, payload);
-        }
-
         public async Task RequestCancelTaskAsync(Guid taskId, Guid volunteerId, string? note)
         {
-            var task = await _taskRepo.GetByIdAsync(taskId);
-            if (task == null) throw new KeyNotFoundException("Task not found");
-            if (task.VolunteerId != volunteerId) throw new UnauthorizedAccessException("Not your task");
+            var task = await _taskRepo.GetByIdAsync(taskId)
+                ?? throw new KeyNotFoundException("Task not found");
+
+            if (task.VolunteerId != volunteerId)
+                throw new UnauthorizedAccessException();
 
             task.Status = "pending-to-canceled";
             task.Note = note;
             task.UpdatedAt = DateTime.UtcNow;
+
             await _taskRepo.UpdateAsync(task);
 
-            var volunteer = await _userRepo.GetByIdAsync(volunteerId);
-            var report = await _repo.GetByIdAsync(task.ReportId);
-            var payload = new
+            await _notification.NotifyVolunteersRequestTaskCanceled(new
             {
-                name = volunteer?.FullName,
-                id = volunteerId,
-                phone = volunteer?.Phone,
-                taskId = task.Id,
-                reportName = report?.Name,
-                reportPhone = report?.Phone,
-                reportAddress = report?.Address,
-                Note = note
-
-            };
-
-            await _notification.NotifyVolunteersRequestTaskCanceled(payload);
+                taskId,
+                volunteerId,
+                note
+            });
         }
 
         public async Task MarkTaskDoneAsync(Guid taskId, Guid volunteerId)
         {
-            var task = await _taskRepo.GetByIdAsync(taskId);
-            if (task == null) throw new KeyNotFoundException("Task not found");
-            if (task.VolunteerId != volunteerId) throw new UnauthorizedAccessException("Not your task");
+            var task = await _taskRepo.GetByIdAsync(taskId)
+                ?? throw new KeyNotFoundException();
+
+            if (task.VolunteerId != volunteerId)
+                throw new UnauthorizedAccessException();
 
             task.Status = "done";
             task.UpdatedAt = DateTime.UtcNow;
             await _taskRepo.UpdateAsync(task);
 
-            var report = await _repo.GetByIdAsync(task.ReportId);
+            var report = await _reportRepo.GetByIdAsync(task.ReportId);
             if (report != null)
             {
                 report.Status = "completed";
                 report.UpdatedAt = DateTime.UtcNow;
-                await _repo.UpdateAsync(report);
+                await _reportRepo.UpdateAsync(report);
             }
 
-            await _notification.NotifyAdminsTaskCompleted(new { taskId, reportId = task.ReportId });
+            await _notification.NotifyAdminsTaskCompleted(new
+            {
+                taskId,
+                reportId = task.ReportId
+            });
         }
 
-        public async Task<IEnumerable<object>> GetNearbySafetyPointsAsync(string province)
+        public async Task<IEnumerable<TaskSummaryDto>> GetTasksByStatusAsync(string status)
         {
-            var pts = await _safetyRepo.FindNearbyAsync(province);
-            return pts.Select(p => new { id = p.Id, name = p.Name, type = p.Type, address = p.Address });
+            var tasks = await _taskRepo.GetByStatusAsync(status);
+
+            return tasks.Select(t => new TaskSummaryDto
+            {
+                Id = t.Id,
+                ReportId = t.ReportId,
+                VolunteerId = t.VolunteerId,
+                Status = t.Status,
+                CreatedAt = t.CreatedAt
+            });
         }
 
-        public async Task<IEnumerable<object>> GetReportsByStatusAsync(string status)
+
+        private static ReportSummaryDto MapReport(SOSReport r) => new()
         {
-            var res = await _repo.GetByStatusAsync(status);
-            if (res == null) return Enumerable.Empty<object>();
-            return new List<object> {
-                new {
-                    id = res.Id,
-                    userId = res.UserId,
-                    name = res.Name,
-                    phone = res.Phone,
-                    address = res.Address,
-                    status = res.Status,
-                    level = res.Level,
-                    details = res.Details,
-                    createdAt = res.CreatedAt
-                }
-            };
-        }
-        public async Task<IEnumerable<object>> GetTasksByStatusAsync(string status)
-        {
-            var task = await _taskRepo.GetByStatusAsync(status);
-            if (task == null) return Enumerable.Empty<object>();
-            return new List<object> {
-                new {
-                    id = task.Id,
-                    reportId = task.ReportId,
-                    volunteerId = task.VolunteerId,
-                    status = task.Status,
-                    createdAt = task.CreatedAt
-                }
-            };
-        }
+            Id = r.Id,
+            UserId = r.UserId,
+            Name = r.Name,
+            Phone = r.Phone,
+            Status = r.Status,
+            Level = r.Level,
+            Details = r.Details,
+            Address = r.Address,
+            CreatedAt = r.CreatedAt
+        };
     }
 }

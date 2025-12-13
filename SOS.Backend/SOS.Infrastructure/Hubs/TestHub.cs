@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 
-namespace Sos.WebApi.Hubs
+namespace Sos.Infrastructure.Hubs
 {
     public class TestHub : Hub
     {
@@ -54,8 +54,8 @@ namespace Sos.WebApi.Hubs
         /// </summary>
         public async Task JoinByRoleAndStatus(string role, string? status, Guid? userId)
         {
-            role = role?.ToLower();
-            status = status?.ToLower();
+            role = role?.ToLower() ?? string.Empty; // Ensure role is not null
+            status = status?.ToLower() ?? string.Empty; // Ensure status is not null
 
             if (role == "admin")
             {
