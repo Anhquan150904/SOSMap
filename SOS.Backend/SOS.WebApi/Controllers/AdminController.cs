@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Sos.Application.Services;
 using Sos.Domain.Interfaces;
-using SOS.Domain.Interfaces;
+using SOS.Service.Interfaces;
 using Sos.Application.DTOs.ReportSosDto;
 
 namespace Sos.WebApi.Controllers
@@ -10,13 +10,11 @@ namespace Sos.WebApi.Controllers
     [Route("api/admin")]
     public class AdminController : ControllerBase
     {
-        private readonly AdminService _service;
-        private readonly IUserRepository _userRepo;
+        private readonly IAdminService _service;
 
-        public AdminController(AdminService service, IUserRepository userRepo)
+        public AdminController(IAdminService service)
         {
             _service = service;
-            _userRepo = userRepo;
         }
         // chấp nhận yêu cầu hủy nhiệm vụ cứu hộ
         [HttpPost("tasks/{taskId:guid}/cancel")]

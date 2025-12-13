@@ -12,6 +12,10 @@ namespace Sos.Domain.Interfaces
 
         Task DeleteTaskById(Guid taskid, CancellationToken ct = default);
 
-        Task<RescueTask?> GetByStatusAsync(string status, CancellationToken ct = default);
+        Task<List<RescueTask>> GetByStatusAsync(
+            string status,
+            CancellationToken ct = default
+        );
+
     }
 }

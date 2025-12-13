@@ -1,37 +1,38 @@
-﻿using StackExchange.Redis;
+﻿using Sos.Domain.Interfaces;
+using Sos.Service.Interfaces;
 
 namespace Sos.Application.Services
 {
-    public class OtpService
+    public class OtpService : IOtpService
     {
-        private readonly StackExchange.Redis.IDatabase _db;
+        private readonly IOtpStore _otpStore;
         private readonly TimeSpan _ttl = TimeSpan.FromMinutes(5);
 
-        public OtpService(IConnectionMultiplexer mux)
+        public OtpService(IOtpStore otpStore)
         {
-            _db = mux.GetDatabase();
+            _otpStore = otpStore;
         }
 
         public async Task<string> GenerateAndStoreOtpAsync(string phone)
         {
-            var rnd = new Random();
-            var code = rnd.Next(100000, 999999).ToString();
-            var key = $"otp:{phone}";
-            await _db.StringSetAsync(key, code, _ttl);
-            // In production: send SMS via provider
+            var code = Random.Shared.Next(100000, 999999).ToString();
+            await _otpStore.SaveAsync(phone, code, _ttl);
+
+            // Application KHÔNG gửi SMS
             return code;
         }
 
         public async Task<bool> ValidateOtpAsync(string phone, string code)
         {
-            var key = $"otp:{phone}";
-            var stored = await _db.StringGetAsync(key);
-            if (stored.IsNullOrEmpty) return false;
+            var stored = await _otpStore.GetAsync(phone);
+            if (stored == null) return false;
+
             if (stored == code)
             {
-                await _db.KeyDeleteAsync(key);
+                await _otpStore.RemoveAsync(phone);
                 return true;
             }
+
             return false;
         }
     }

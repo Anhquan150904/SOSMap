@@ -7,7 +7,7 @@ namespace Sos.Domain.Interfaces
     {
         Task AddAsync(SOSReport report, CancellationToken ct = default);
         Task<SOSReport?> GetByIdAsync(Guid id, CancellationToken ct = default);
-        Task<SOSReport?> GetByStatusAsync(string status, CancellationToken ct = default);
+        Task<IEnumerable<SOSReport>> GetByStatusAsync(string status, CancellationToken ct = default);
         Task UpdateAsync(SOSReport report, CancellationToken ct = default);
         Task<IEnumerable<SOSReport>> FindNearbyAsync(string province, int limit = 200, CancellationToken ct = default);
 
