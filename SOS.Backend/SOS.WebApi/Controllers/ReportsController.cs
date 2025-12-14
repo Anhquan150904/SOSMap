@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Sos.Application.Services;
-using Sos.Domain.Interfaces;
-using SOS.Domain.Interfaces;
 using Sos.Application.DTOs.ReportSosDto;
+using SOS.Service.Interfaces;
+using Sos.Application.Interfaces;
 
 namespace Sos.WebApi.Controllers
 {
@@ -10,59 +10,39 @@ namespace Sos.WebApi.Controllers
     [Route("api/reports")]
     public class ReportsController : ControllerBase
     {
-        private readonly ReportService _service;
-        private readonly IUserRepository _userRepo;
+        private readonly IReportService _service;
 
-        public ReportsController(ReportService service, IUserRepository userRepo)
+        public ReportsController(IReportService service)
         {
             _service = service;
-            _userRepo = userRepo;
         }
 
         // Tạo báo cáo SOS
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateReportRequest req)
         {
-            var user = await _userRepo.GetByPhoneAsync(req.Phone);
-            if (user == null) return BadRequest("User not found - authenticate first");
-
-            var reportId = await _service.CreateReportAsync(
-                user.Id, req.Name, req.Phone, req.Address, req.Details, req.Level
-            );
-
+            var reportId = await _service.CreateReportAsync(req);
             return CreatedAtAction(nameof(GetById), new { id = reportId }, new { id = reportId });
         }
 
         // Lấy báo cáo theo Id
         [HttpGet("{id:guid}")]
-        public async Task<IActionResult> GetById(Guid id, [FromServices] IReportRepository repo)
+        public async Task<IActionResult> GetById(Guid id)
         {
-            var r = await repo.GetByIdAsync(id);
-            if (r == null) return NotFound();
-
-            return Ok(new
-            {
-                id = r.Id,
-                name = r.Name,
-                phone = r.Phone,
-                address = r.Address,
-                status = r.Status,
-                level = r.Level,
-                details = r.Details,
-                createdAt = r.CreatedAt
-            });
+            var report = await _service.GetByIdAsync(id);
+            return report == null ? NotFound() : Ok(report);
         }
 
-        // Lấy danh sách SOS gần vị trí
+        // Lấy SOS gần khu vực
         [HttpGet]
-        public async Task<IActionResult> GetNearby(string province)
+        public async Task<IActionResult> GetNearby([FromQuery] string province)
         {
             var list = await _service.GetNearbyAsync(province);
             return Ok(list);
         }
 
-        // Lấy danh sách theo status
-        [HttpGet("{status}/status")]
+        // Lấy SOS theo status
+        [HttpGet("status/{status}")]
         public async Task<IActionResult> GetByStatus(string status)
         {
             var list = await _service.GetReportsByStatusAsync(status);
@@ -77,14 +57,15 @@ namespace Sos.WebApi.Controllers
             return Ok(new { taskId });
         }
 
-        // yêu cầu hủy nhiệm vụ cứu hộ
+        // Đội cứu hộ yêu cầu hủy nhiệm vụ
         [HttpPost("tasks/{taskId:guid}/request-cancel")]
         public async Task<IActionResult> RequestCancelTask(Guid taskId, [FromBody] TaskActionRequest req)
         {
             await _service.RequestCancelTaskAsync(taskId, req.VolunteerId, req.note);
-            return Ok(new { canceled = true });
+            return Ok(new { requested = true });
         }
-        // Hoàn thành nhiệm vụ cứu hộ
+
+        // Hoàn thành nhiệm vụ
         [HttpPost("tasks/{taskId:guid}/done")]
         public async Task<IActionResult> DoneTask(Guid taskId, [FromBody] TaskActionRequest req)
         {
@@ -92,8 +73,8 @@ namespace Sos.WebApi.Controllers
             return Ok(new { done = true });
         }
 
-        // Lấy nhiệm vụ cứu hộ theo status
-        [HttpGet("tasks/{status}/status")]
+        // Lấy task theo status
+        [HttpGet("tasks/status/{status}")]
         public async Task<IActionResult> GetTasksByStatus(string status)
         {
             var list = await _service.GetTasksByStatusAsync(status);
