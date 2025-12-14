@@ -183,115 +183,159 @@ const AdminDashboard = () => {
             {/* 1. YÊU CẦU HỦY (Ưu tiên) */}
             <div className="section-block danger-block">
               <h3>🚨 Yêu Cầu Hủy Nhiệm Vụ</h3>
-              {renderTable(
-                requests.filter((r) => r.status === "cancel_pending"),
-                ["TNV Yêu Cầu", "Đang Cứu", "Lý Do", "Hành Động"],
-                (req, idx) => (
-                  <tr key={req.id}>
-                    <td>
-                      {req.rescuerName}
-                      <br />
-                      <small>{req.rescuerPhone}</small>
-                    </td>
-                    <td>{req.name}</td>
-                    <td style={{ color: "red" }}>{req.cancelReason}</td>
-                    <td>
-                      <button
-                        className="btn-small btn-danger"
-                        onClick={() => handleApproveCancel(req)}
-                      >
-                        Duyệt Hủy
-                      </button>
-                    </td>
-                  </tr>
-                )
-              )}
+              
+              <div className="table-container">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>TNV Yêu Cầu</th>
+                      <th>Nhiệm Vụ Đang Cứu</th>
+                      <th style={{width: '30%'}}>Lý Do Hủy</th> {/* Cố định độ rộng cho lý do */}
+                      <th>Hành Động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requests.filter((r) => r.status === "cancel_pending").length === 0 ? (
+                      <tr><td colSpan="4" style={{textAlign: 'center', padding: '20px'}}>Không có yêu cầu nào</td></tr>
+                    ) : (
+                      requests.filter((r) => r.status === "cancel_pending").map((req) => (
+                        <tr key={req.id}>
+                          <td>
+                            <strong>{req.rescuerName}</strong>
+                            <br />
+                            <small>{req.rescuerPhone}</small>
+                          </td>
+                          <td>
+                            <strong>{req.name}</strong>
+                            <br/>
+                            <small>{req.address}</small>
+                          </td>
+                          <td>
+                            <span style={{ color: "#b91c1c", fontWeight: 500 }}>
+                              "{req.cancelReason}"
+                            </span>
+                          </td>
+                          <td>
+                            <button className="btn-small btn-danger" onClick={() => handleApproveCancel(req)}>
+                              Duyệt Hủy
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* 2. DUYỆT TÌNH NGUYỆN VIÊN */}
             <div className="section-block info-block">
               <h3>❤️ Duyệt Tình Nguyện Viên Mới</h3>
-              {renderTable(
-                pendingVolunteers,
-                ["Họ Tên", "SĐT", "Địa Chỉ", "Hành Động"],
-                (vol, idx) => (
-                  <tr key={idx}>
-                    <td>{vol.name}</td>
-                    <td>{vol.phone}</td>
-                    <td>{vol.address}</td>
-                    <td>
-                      <button
-                        className="btn-small btn-primary"
-                        onClick={() => handleApproveVolunteer(vol)}
-                      >
-                        Chấp thuận
-                      </button>
-                    </td>
-                  </tr>
-                )
-              )}
+              
+              <div className="table-container">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Họ Tên</th>
+                      <th>Số Điện Thoại</th>
+                      <th className="col-address">Địa Chỉ</th> {/* Dùng lại class col-address để cố định */}
+                      <th>Hành Động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingVolunteers.length === 0 ? (
+                      <tr><td colSpan="4" style={{textAlign: 'center', padding: '20px'}}>Không có đăng ký mới</td></tr>
+                    ) : (
+                      pendingVolunteers.map((vol, idx) => (
+                        <tr key={idx}>
+                          <td><strong>{vol.name}</strong></td>
+                          <td>{vol.phone}</td>
+                          
+                          {/* Cột địa chỉ sẽ tự động xuống dòng đẹp mắt */}
+                          <td>{vol.address}</td>
+                          
+                          <td>
+                            <button className="btn-small btn-primary" onClick={() => handleApproveVolunteer(vol)}>
+                              Chấp thuận
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* 3. DANH SÁCH ĐƠN CỨU TRỢ (Gộp tất cả trạng thái vào 1 bảng lớn) */}
             <div className="section-block">
               <h3>📋 Tất Cả Đơn Cứu Trợ</h3>
-              {renderTable(
-                requests.filter((r) => r.status !== "cancel_pending"), // Loại bỏ cancel_pending vì đã hiện ở trên
-                [
-                  "Người Cần Cứu",
-                  "Địa Chỉ",
-                  "Loại",
-                  "Trạng Thái",
-                  "TNV Phụ Trách",
-                  "Hành Động",
-                ],
-                (req, idx) => (
-                  <tr key={req.id}>
-                    <td>
-                      <strong>{req.name}</strong>
-                      <br />
-                      <small>{req.phone}</small>
-                    </td>
-                    <td>{req.address}</td>
-                    <td>
-                      <span className="badge badge-type">{req.type}</span>
-                    </td>
-                    <td  style={{ textAlign: "center" }}>
-                      <span className={`badge status-${req.status}`}>
-                        {req.status === "pending"
-                          ? "Chờ duyệt"
-                          : req.status === "approved"
-                          ? "Đang tìm TNV"
-                          : req.status === "in_progress"
-                          ? "Đang cứu hộ"
-                          : req.status === "canceled"
-                          ? "Hủy"
-                          : "Hoàn thành"}
-                      </span>
-                    </td>
-                    <td style={{textAlign: "center"}}>{req.rescuerName ? req.rescuerName : "X"}</td>
-                    <td>
-                      {req.status === "pending" && (
-                        <button
-                          className="btn-small btn-success"
-                          onClick={() => handleApproveRequest(req.id)}
-                        >
-                          Duyệt Đơn
-                        </button>
-                      )}
-                      {req.status === "canceled" && (
-                        <span style={{ color: "red" }}>Người yêu cầu đã an toàn </span>
-                      )}  
-                      {req.status === "successfully_completed" && (
-                        <span style={{ color: "green" }}>Đã hoàn thành </span>
-                      )}
-                      {req.status !== "pending" && req.status !== "canceled" &&(
-                        <span style={{ color: "green" }}>Đã hoàn thành </span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              )}
+              
+              {/* Thêm div table-container để bao bọc */}
+              <div className="table-container">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Người Cần Cứu</th>
+                      <th className="col-address">Địa Chỉ</th> {/* Thêm class col-address vào đây */}
+                      <th>Loại</th>
+                      <th>Trạng Thái</th>
+                      <th style={{textAlign: 'center'}}>TNV Phụ Trách</th>
+                      <th>Hành Động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requests.filter((r) => r.status !== "cancel_pending").length === 0 ? (
+                      <tr><td colSpan="6" style={{textAlign: 'center', padding: '20px'}}>Không có dữ liệu</td></tr>
+                    ) : (
+                      requests
+                        .filter((r) => r.status !== "cancel_pending")
+                        .map((req) => (
+                          <tr key={req.id}>
+                            <td>
+                              <strong>{req.name}</strong>
+                              <br />
+                              <small>{req.phone}</small>
+                            </td>
+                            
+                            {/* Dữ liệu địa chỉ sẽ tuân theo width của header col-address */}
+                            <td>{req.address}</td>
+                            
+                            <td>
+                              <span className="badge badge-type">{req.type}</span>
+                            </td>
+                            
+                            <td style={{ textAlign: "center" }}>
+                              <span className={`badge status-${req.status}`}>
+                                {req.status === "pending" ? "Chờ duyệt"
+                                  : req.status === "approved" ? "Đang tìm TNV"
+                                  : req.status === "in_progress" ? "Đang cứu hộ"
+                                  : req.status === "canceled" ? "Hủy"
+                                  : "Hoàn thành"}
+                              </span>
+                            </td>
+                            
+                            <td style={{ textAlign: "center" }}>
+                              {req.rescuerName ? req.rescuerName : "—"}
+                            </td>
+                            
+                            <td>
+                              {req.status === "pending" && (
+                                <button className="btn-small btn-success" onClick={() => handleApproveRequest(req.id)}>
+                                  Duyệt Đơn
+                                </button>
+                              )}
+                              {req.status === "canceled" && <span style={{ color: "red", fontSize: '0.8rem' }}>Đã hủy</span>}
+                              {(req.status === "successfully_completed" || req.status === "completed") && (
+                                <span style={{ color: "green", fontWeight: 'bold', fontSize: '0.8rem' }}>✓ Hoàn thành</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

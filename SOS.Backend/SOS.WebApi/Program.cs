@@ -16,7 +16,7 @@ using StackExchange.Redis;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Database
-var conn = @"Server=VUANHQUAN\SQLEXPRESS01;Database=SOSMap;Trusted_Connection=True;TrustServerCertificate=True;Encrypt=False;";
+var conn = @"Server=HOUTARO\SQLEXPRESS;Database=SOSMap;Trusted_Connection=True;TrustServerCertificate=True;Encrypt=False;";
 builder.Services.AddDbContext<SosDbContext>(opts =>
     opts.UseSqlServer(conn, x => x.UseNetTopologySuite()));
 
@@ -63,7 +63,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins("http://localhost:5500", "http://127.0.0.1:5500")
+        policy.WithOrigins("http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:5173")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

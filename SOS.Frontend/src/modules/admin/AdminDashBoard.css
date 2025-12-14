@@ -69,37 +69,58 @@
 }
 
 /* --- BẢNG DỮ LIỆU (TABLE) --- */
+/* 1. Bao bọc bảng để có thanh cuộn ngang khi cần */
+.table-container {
+  width: 100%;
+  overflow-x: auto; /* Cho phép cuộn ngang nếu bảng quá rộng */
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: white;
+}
+
+/* 2. Thiết lập bảng cứng */
 .admin-table {
   width: 100%;
-  border-collapse: separate; 
-  border-spacing: 0;
+  min-width: 1000px; /* Đảm bảo bảng luôn đủ rộng, không bị co dúm */
+  border-collapse: collapse; /* Gộp đường viền (quan trọng để ra dạng bảng cứng) */
   font-size: 0.9rem;
 }
 
+/* 3. Kẻ khung cho Tiêu đề và Ô dữ liệu */
+.admin-table th, 
+.admin-table td {
+  padding: 12px 15px;
+  border: 1px solid #cbd5e1; /* Đường kẻ khung màu xám */
+  text-align: center;
+  vertical-align: middle;
+  color: #334155;
+}
+
+/* 4. Style riêng cho Header */
 .admin-table th {
-  text-align: left;
-  padding: 15px;
-  background-color: #f8fafc;
-  color: #64748b;
-  font-weight: 600;
+  background-color: #f1f5f9; /* Màu nền tiêu đề */
+  color: #1e293b;
+  font-weight: 700;
   text-transform: uppercase;
   font-size: 0.75rem;
-  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap; /* Không cho tiêu đề xuống dòng */
 }
 
-.admin-table td {
-  padding: 15px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #334155;
-  vertical-align: middle;
-}
-
-.admin-table tr:hover td {
+/* 5. Hiệu ứng dòng chẵn lẻ và hover */
+.admin-table tbody tr:nth-child(even) {
   background-color: #f8fafc;
 }
 
-.admin-table tr:last-child td {
-  border-bottom: none;
+.admin-table tbody tr:hover {
+  background-color: #f0f9ff; /* Màu xanh nhạt khi di chuột vào */
+}
+
+/* 6. CỐ ĐỊNH CỘT ĐỊA CHỈ (Quan trọng) */
+.col-address {
+  width: 250px;      /* Chiều rộng cố định */
+  max-width: 300px;
+  word-wrap: break-word; /* Tự xuống dòng nếu chữ quá dài */
+  white-space: normal;
 }
 
 /* --- BADGES --- */
@@ -122,9 +143,20 @@
 
 /* --- BUTTONS NHỎ --- */
 .btn-small {
-  padding: 6px 12px; border: none; border-radius: 4px;
-  font-size: 0.8rem; font-weight: 600; cursor: pointer; color: white;
-  transition: opacity 0.2s; display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: white;
+  transition: opacity 0.2s;
+  
+  /* --- QUAN TRỌNG: Cấu hình Flexbox --- */
+  display: inline-flex;    /* Hoặc flex */
+  align-items: center;     /* Căn giữa theo chiều dọc (đã có) */
+  justify-content: center; /* <--- THÊM DÒNG NÀY: Căn giữa theo chiều ngang */
+  gap: 5px;
 }
 .btn-small:hover { opacity: 0.9; }
 .btn-success { background: #10b981; }
