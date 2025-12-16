@@ -3,6 +3,7 @@ using Sos.Application.DTOs.OtpDto;
 using Sos.Domain.Entities;
 using Sos.Domain.Interfaces;
 using Sos.Service.Interfaces;
+using SOS.Application.DTOs.OtpDto;
 
 public class AuthService: IAuthService
 {
@@ -15,7 +16,7 @@ public class AuthService: IAuthService
         _userRepo = userRepo;
     }
 
-    public async Task<string> SendOtpAsync(string phone)
+    public async Task<OtpGenerateResult> SendOtpAsync(string phone)
     {
         if (string.IsNullOrWhiteSpace(phone))
             throw new ArgumentException("Phone required");

@@ -45,8 +45,6 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
     configuration.AbortOnConnectFail = false;
     return ConnectionMultiplexer.Connect(configuration);
 });
-
-builder.Services.AddSingleton<OtpService>();
 // 4. Notification Service (duy nhất đang dùng trong TestHub)
 builder.Services.AddScoped<INotificationService, SignalRNotificationService>();
 
