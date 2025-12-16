@@ -44,7 +44,11 @@ public class AuthService: IAuthService
         }
         else
         {
-            user.FullName = req.FullName ?? user.FullName;
+            // Nếu chuỗi KHÔNG (null hoặc rỗng)
+            if (!string.IsNullOrEmpty(req.FullName))
+            {
+                user.FullName = req.FullName;
+            }
             user.UpdatedAt = DateTime.UtcNow;
             await _userRepo.UpdateAsync(user);
         }
@@ -80,7 +84,11 @@ public class AuthService: IAuthService
                 user.Status = "Pending";
             }
 
-            user.FullName = req.FullName ?? user.FullName;
+            // Nếu chuỗi KHÔNG (null hoặc rỗng)
+            if (!string.IsNullOrEmpty(req.FullName))
+            {
+                user.FullName = req.FullName;
+            }
             user.UpdatedAt = DateTime.UtcNow;
             await _userRepo.UpdateAsync(user);
         }
@@ -89,6 +97,7 @@ public class AuthService: IAuthService
         {
             UserId = user.Id,
             Phone = user.Phone,
+            FullName = user.FullName,
             Role = user.Role,
             Status = user.Status,
             Message = "Bạn đã đăng ký thành công trở thành nhóm cứu hộ. Vui lòng đợi quản trị viên kiểm tra và duyệt thông tin!"

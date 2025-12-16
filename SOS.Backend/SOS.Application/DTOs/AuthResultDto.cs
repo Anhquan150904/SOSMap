@@ -6,6 +6,7 @@ namespace Sos.Application.DTOs.OtpDto
     public class AuthResultDto
     {
         public Guid UserId { get; set; }
+        public string? FullName { get; set; }
         public string Phone { get; set; } = default!;
         public string Role { get; set; } = default!;
         public string? Status { get; set; }
@@ -15,6 +16,7 @@ namespace Sos.Application.DTOs.OtpDto
         public AuthResultDto(User user)
         {
             UserId = user.Id;
+            FullName = user.FullName;
             Phone = user.Phone;
             Role = user.Role;
             Status = user.Status;
