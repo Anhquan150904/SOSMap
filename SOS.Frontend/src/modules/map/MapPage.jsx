@@ -39,7 +39,6 @@ const blueIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-// --- [MỚI] ICON MÀU XANH LÁ CHO ĐIỂM CỨU TRỢ ---
 const greenIcon = new L.Icon({
   iconUrl:
     "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
@@ -62,35 +61,17 @@ function ChangeView({ center, zoom }) {
   return null;
 }
 
-const RoutingMachine = ({ start, end }) => {
-  const map = useMap();
-  useEffect(() => {
-    if (!map || !start || !end) return;
-    const routingControl = L.Routing.control({
-      waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
-      routeWhileDragging: false,
-      show: false,
-      addWaypoints: false,
-      fitSelectedRoutes: true,
-      lineOptions: { styles: [{ color: "#6FA1EC", weight: 6 }] },
-      createMarker: function () {
-        return null;
-      },
-    }).addTo(map);
-    return () => map.removeControl(routingControl);
-  }, [map, start, end]);
-  return null;
-};
-
 const MapPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // --- REFS ĐỂ QUẢN LÝ MAP & ROUTING (FIX LỖI TIMEOUT) ---
+  const mapRef = useRef(null);
+  const routingControlRef = useRef(null);
+
   // --- STATES ---
   const [currentUser, setCurrentUser] = useState(null);
   const [requests, setRequests] = useState([]);
-
-  // --- [MỚI] STATE ĐIỂM CỨU TRỢ ---
   const [reliefPoints, setReliefPoints] = useState([]);
 
   // State Form
@@ -112,17 +93,52 @@ const MapPage = () => {
   const [newAddressInput, setNewAddressInput] = useState("");
   const [manualPosition, setManualPosition] = useState(null);
 
-  // State Routing
-  const [activeRoute, setActiveRoute] = useState(null);
-
   // --- STATE CHO AUTOCOMPLETE ---
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
 
-  console.log("Current User:", currentUser);
-  console.log("New Address Input:", newAddressInput);
+  // --- COMPONENT CON ĐỂ LẤY MAP INSTANCE ---
+  // Giúp gán map vào mapRef.current để dùng cho việc vẽ đường
+  const MapRefHandler = () => {
+    const map = useMap();
+    useEffect(() => {
+      mapRef.current = map;
+    }, [map]);
+    return null;
+  };
+
+  // --- HÀM VẼ ĐƯỜNG (TỐI ƯU HÓA) ---
+  // Chỉ gọi khi cần thiết, có cơ chế dọn dẹp đường cũ
+  const handleDrawRoute = (start, end) => {
+    if (!mapRef.current) return;
+
+    // 1. Xóa đường cũ nếu có
+    if (routingControlRef.current) {
+      try {
+        mapRef.current.removeControl(routingControlRef.current);
+      } catch (e) {
+        console.warn("Lỗi dọn đường cũ:", e);
+      }
+    }
+
+    // 2. Tạo đường mới
+    const routingControl = L.Routing.control({
+      waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
+      routeWhileDragging: false,
+      show: false, // Ẩn bảng hướng dẫn text
+      addWaypoints: false,
+      fitSelectedRoutes: true,
+      lineOptions: { styles: [{ color: "#6FA1EC", weight: 6 }] },
+      // Sử dụng service OSRM công khai
+      router: L.Routing.osrmv1({
+        serviceUrl: `https://router.project-osrm.org/route/v1`,
+      }),
+    }).addTo(mapRef.current);
+
+    routingControlRef.current = routingControl;
+  };
 
   // --- EFFECTS ---
   useEffect(() => {
@@ -147,7 +163,6 @@ const MapPage = () => {
     if (storedRequests) setRequests(JSON.parse(storedRequests));
   }, []);
 
-  // --- EFFECT LOAD ĐIỂM CỨU TRỢ ---
   useEffect(() => {
     const fetchReliefPoints = async () => {
       const storedPoints = localStorage.getItem("RELIEF_POINTS");
@@ -185,7 +200,6 @@ const MapPage = () => {
     fetchReliefPoints();
   }, []);
 
-  // Click outside to close suggestion popup
   useEffect(() => {
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
@@ -195,26 +209,6 @@ const MapPage = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [wrapperRef]);
-
-  // Effect Routing
-  useEffect(() => {
-    if (!currentUser || requests.length === 0) return;
-    const activeReq = requests.find((r) => {
-      const isMyTask =
-        (r.status === "in_progress" || r.status === "cancel_pending") &&
-        (r.userId === currentUser.phone ||
-          r.rescuerPhone === currentUser.phone);
-      return isMyTask;
-    });
-    if (activeReq && activeReq.rescuerLocation && activeReq.location) {
-      setActiveRoute({
-        start: activeReq.rescuerLocation,
-        end: activeReq.location,
-      });
-    } else {
-      setActiveRoute(null);
-    }
-  }, [requests, currentUser]);
 
   // --- LOGIC AUTOCOMPLETE ---
   const filterUniqueSuggestions = (data) => {
@@ -319,7 +313,6 @@ const MapPage = () => {
         localStorage.setItem("currentUser", JSON.stringify(updatedUser));
         setManualPosition(newCoords);
 
-        // Update DB gốc
         const userDB = JSON.parse(
           localStorage.getItem("USER_DATABASE") || "{}"
         );
@@ -329,7 +322,6 @@ const MapPage = () => {
           localStorage.setItem("USER_DATABASE", JSON.stringify(userDB));
         }
 
-        // Nếu là Volunteer -> Cập nhật vị trí trong đơn hàng
         if (currentUser.role === "volunteer") {
           const activeReqIndex = requests.findIndex(
             (r) =>
@@ -350,7 +342,7 @@ const MapPage = () => {
           }
         }
 
-        alert("Đã cập nhật vị trí! Đường dẫn sẽ được vẽ lại.");
+        alert("Đã cập nhật vị trí!");
         setShowUpdateAddressModal(false);
         setNewAddressInput("");
       } else {
@@ -429,6 +421,7 @@ const MapPage = () => {
       `Bạn có chắc chắn muốn nhận cứu trợ cho ${request.name}?`
     );
     if (!confirm) return;
+
     const updatedRequests = requests.map((r) =>
       r.id === request.id
         ? {
@@ -443,6 +436,9 @@ const MapPage = () => {
     setRequests(updatedRequests);
     localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
     alert("Đã nhận nhiệm vụ! Hãy di chuyển đến vị trí người bị nạn.");
+
+    // [MỚI] Tự động vẽ đường sau khi nhận
+    handleDrawRoute(currentUser.location, request.location);
   };
 
   const handleCompleteSupport = (request) => {
@@ -454,6 +450,14 @@ const MapPage = () => {
     setRequests(updatedRequests);
     localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
     alert("Cảm ơn bạn! Yêu cầu đã hoàn tất.");
+
+    // [MỚI] Xóa đường đi sau khi hoàn thành
+    if (routingControlRef.current && mapRef.current) {
+      try {
+        mapRef.current.removeControl(routingControlRef.current);
+        routingControlRef.current = null;
+      } catch (e) {}
+    }
   };
 
   const handleTriggerCancel = (request) => {
@@ -498,7 +502,7 @@ const MapPage = () => {
 
   return (
     <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
-      {/* Nút Quay lại */}
+      {/* Các nút Quay lại và Chờ duyệt GIỮ NGUYÊN */}
       <button
         onClick={() => navigate("/home")}
         style={{
@@ -522,7 +526,6 @@ const MapPage = () => {
         <span>⬅</span> Quay lại
       </button>
 
-      {/* Thông báo nếu đang chờ duyệt */}
       {currentUser?.role === "volunteer-pending" && (
         <div
           style={{
@@ -649,16 +652,13 @@ const MapPage = () => {
         maxBounds={VIETNAM_BOUNDS}
         style={{ width: "100%", height: "100%" }}
       >
+        <MapRefHandler /> {/* Gắn map instance vào ref */}
         <ChangeView center={effectiveCenter} zoom={14} />
-
         <TileLayer
           attribution="&copy; OpenStreetMap"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-
-        {activeRoute && (
-          <RoutingMachine start={activeRoute.start} end={activeRoute.end} />
-        )}
+        {/* Đã xóa RoutingMachine Component gây lỗi */}
 
         {/* 1. MARKER VỊ TRÍ CỦA TÔI */}
         {currentUser && currentUser.location && (
@@ -704,28 +704,26 @@ const MapPage = () => {
                   <br />
                   Chi tiết: {req.description} <br />
                   Địa chỉ: {req.address} <br />
-                  {/* --- [SỬA LẠI ĐÚNG YÊU CẦU] --- */}
-                  {/* Chỉ hiện nút Hủy nếu User đang đăng nhập LÀ chủ nhân của request NÀY */}
-                  {currentUser && currentUser.role === "citizen" && currentUser.phone === req.userId && (
-                    <button
-                      onClick={() => handleCitizenCancelRequest(req)}
-                      style={{
-                        marginTop: "10px",
-                        width: "100%",
-                        padding: "5px",
-                        background: "#10b981",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      ✅ Tôi đã an toàn / Hủy yêu cầu
-                    </button>
-                  )}
-                  {/* ---------------------------------- */}
-
+                  {currentUser &&
+                    currentUser.role === "citizen" &&
+                    currentUser.phone === req.userId && (
+                      <button
+                        onClick={() => handleCitizenCancelRequest(req)}
+                        style={{
+                          marginTop: "10px",
+                          width: "100%",
+                          padding: "5px",
+                          background: "#10b981",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        ✅ Tôi đã an toàn / Hủy yêu cầu
+                      </button>
+                    )}
                   {/* Nút hành động cho Volunteer */}
                   {isVolunteerFunc && (
                     <div style={{ marginTop: "10px", textAlign: "center" }}>
@@ -762,8 +760,31 @@ const MapPage = () => {
                                 fontSize: "0.85rem",
                               }}
                             >
-                              Đang dẫn đường...
+                              Đang thực hiện...
                             </p>
+
+                            {/* [MỚI] NÚT VẼ LẠI ĐƯỜNG ĐI */}
+                            <button
+                              onClick={() =>
+                                handleDrawRoute(
+                                  currentUser.location,
+                                  req.location
+                                )
+                              }
+                              style={{
+                                background: "#3b82f6",
+                                color: "white",
+                                border: "none",
+                                padding: "6px 12px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                width: "100%",
+                                marginBottom: "5px",
+                              }}
+                            >
+                              🗺️ Dẫn đường
+                            </button>
+
                             <button
                               onClick={() => handleCompleteSupport(req)}
                               style={{
@@ -793,32 +814,6 @@ const MapPage = () => {
                             >
                               ❌ Hủy nhận
                             </button>
-                          </div>
-                        )}
-
-                      {req.status === "cancel_pending" &&
-                        req.rescuerPhone === currentUser.phone && (
-                          <div
-                            style={{
-                              background: "#fff7ed",
-                              padding: "5px",
-                              borderRadius: "4px",
-                              border: "1px solid #fed7aa",
-                            }}
-                          >
-                            <p
-                              style={{
-                                color: "#c2410c",
-                                fontWeight: "bold",
-                                margin: 0,
-                                fontSize: "0.9rem",
-                              }}
-                            >
-                              ⏳ Đang chờ Admin duyệt hủy...
-                            </p>
-                            <small style={{ color: "#555" }}>
-                              Lý do: {req.cancelReason}
-                            </small>
                           </div>
                         )}
 
@@ -865,10 +860,9 @@ const MapPage = () => {
           );
         })}
 
-        {/* --- [MỚI] 3. MARKER ĐIỂM CỨU TRỢ (XANH LÁ) --- */}
+        {/* 3. MARKER ĐIỂM CỨU TRỢ */}
         {reliefPoints.map((point) => {
           if (!point.location) return null;
-
           return (
             <Marker
               key={`point-${point.id}`}
@@ -908,12 +902,13 @@ const MapPage = () => {
           )}
       </MapContainer>
 
-      {/* MODAL 1: FORM SOS */}
+      {/* CÁC MODAL GIỮ NGUYÊN (Request, Cancel, UpdateAddress) */}
       {showRequestForm && (
         <Modal
           title="Gửi yêu cầu khẩn cấp"
           onClose={() => setShowRequestForm(false)}
         >
+          {/* ... code form giữ nguyên ... */}
           <div className="form-group">
             <label>Bạn cần giúp gì?</label>
             <select
@@ -958,7 +953,6 @@ const MapPage = () => {
         </Modal>
       )}
 
-      {/* MODAL 2: HỦY YÊU CẦU */}
       {showCancelModal && (
         <Modal
           title="Lý do hủy nhiệm vụ"
@@ -989,7 +983,6 @@ const MapPage = () => {
         </Modal>
       )}
 
-      {/* MODAL 3: CẬP NHẬT ĐỊA CHỈ */}
       {showUpdateAddressModal && (
         <Modal
           title="Cập nhật Vị trí Hiện tại"
