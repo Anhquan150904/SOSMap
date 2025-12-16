@@ -26,6 +26,7 @@ public class AuthService: IAuthService
 
     public async Task<AuthResultDto> VerifyOtpAsync(VerifyOtpRequest req)
     {
+        Console.WriteLine($"Verifying OTP for phone: {req.Phone}, code: {req.Code}");
         if (!await _otp.ValidateOtpAsync(req.Phone, req.Code))
             throw new InvalidOperationException("Invalid or expired OTP");
 
