@@ -80,5 +80,12 @@ namespace Sos.WebApi.Controllers
             var list = await _service.GetTasksByStatusAsync(status);
             return Ok(list);
         }
+
+        [HttpGet("tasks/gettask/{reportId}")]
+        public async Task<IActionResult> GetTask(Guid reportId)
+        {
+            var task = await _service.GetTask(reportId);
+            return Ok(task);
+        }
     }
 }

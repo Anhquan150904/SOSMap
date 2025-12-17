@@ -47,5 +47,14 @@ namespace Sos.Infrastructure.Repositories
                 .ToListAsync(ct);
         }
 
+        public async Task<RescueTask?> GetTask(
+            Guid reportId,
+            CancellationToken ct = default)
+        {
+            return await _db.RescueTasks
+                .FirstOrDefaultAsync(t => t.ReportId == reportId, ct);
+        }
+
+
     }
 }

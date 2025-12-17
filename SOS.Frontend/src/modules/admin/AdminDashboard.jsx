@@ -1,7 +1,7 @@
 // src/pages/AdminDashboard.jsx
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./AdminDashboard.css";
 
 const API_BASE = "http://localhost:5075/api";
@@ -97,9 +97,9 @@ const AdminDashboard = () => {
     
     setIsLoading(true);
     try {
-      // Gọi API: POST /api/reports/{reportId}/accept
+      // Gọi API: POST /api/admin/reports/{reportId}/accept
       await axios.post(
-        `${API_BASE}/reports/${report.id}/accept`, 
+        `${API_BASE}/admin/report/${report.id}/accept-to-sos-report`, 
         {}, // Body rỗng
         { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } }
       );

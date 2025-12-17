@@ -11,19 +11,20 @@ namespace Sos.Application.Services
         private readonly IUserRepository _userRepo;
         private readonly IRescueTaskRepository _taskRepo;
         private readonly INotificationService _notification;
-        private readonly GeometryFactory _geomFactory;
+        private readonly IReportRepository _reportRepository;
 
         public AdminService(
             IReportRepository repo,
             IUserRepository userRepo,
             IRescueTaskRepository taskRepo,
-            INotificationService notification)
+            INotificationService notification,
+            IReportRepository reportRepository)
         {
             _repo = repo;
             _userRepo = userRepo;
             _taskRepo = taskRepo;
             _notification = notification;
-            _geomFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
+            _reportRepository = reportRepository;
         }
 
         public async Task CancelTaskAsync(Guid taskId, Guid volunteerId)
@@ -57,7 +58,13 @@ namespace Sos.Application.Services
             user.Status = "active";
             await _userRepo.UpdateAsync(user);
         }
-
-
+        public async Task AcceptSOSReport(Guid reportId)
+        {
+            var report = await _reportRepository.GetByIdAsync(reportId);
+            report.Status = "accepted";
+            await _reportRepository.UpdateAsync(report);
+        }
     }
+
+
 }
