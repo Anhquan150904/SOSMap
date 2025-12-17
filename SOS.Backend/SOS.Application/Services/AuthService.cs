@@ -83,7 +83,7 @@ public class AuthService: IAuthService
             if (user.Role != "admin")
             {
                 user.Role = "volunteer";
-                user.Status = "Pending";
+                user.Status = "active";
             }
 
             // Nếu chuỗi KHÔNG (null hoặc rỗng)
