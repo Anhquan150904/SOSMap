@@ -13,11 +13,11 @@ import "leaflet-routing-machine";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import L from "leaflet";
-import axios from "axios"; // [THÊM MỚI]
+import axios from "axios"; 
 import Modal from "../../components/Modal";
 import "./MapPage.css";
 
-// --- CẤU HÌNH ICON MÀU SẮC (GIỮ NGUYÊN) ---
+// --- CẤU HÌNH ICON (GIỮ NGUYÊN) ---
 const redIcon = new L.Icon({
   iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
@@ -55,26 +55,20 @@ const MapPage = () => {
   const [requests, setRequests] = useState([]);
   const [reliefPoints, setReliefPoints] = useState([]);
 
-  // Form
+  // Form & UI States
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [reqType, setReqType] = useState("Cần lương thực");
   const [reqDesc, setReqDesc] = useState("");
-
-  // Location
   const [provinces, setProvinces] = useState([]);
   const [currentProvince, setCurrentProvince] = useState(null);
   const [showLocaDropdown, setShowLocaDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Modal
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [requestToCancel, setRequestToCancel] = useState(null);
   const [showUpdateAddressModal, setShowUpdateAddressModal] = useState(false);
   const [newAddressInput, setNewAddressInput] = useState("");
   const [manualPosition, setManualPosition] = useState(null);
-
-  // Autocomplete
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const debounceRef = useRef(null);
@@ -86,11 +80,111 @@ const MapPage = () => {
     return null;
   };
 
+  // --- [UPDATE] LOAD USER & REPORTS TỪ API ---
+  useEffect(() => {
+    const initMapData = async () => {
+      // 1. Lấy thông tin cơ bản từ LocalStorage (để có ID)
+      const storedUser = localStorage.getItem("currentUser");
+      let localData = storedUser ? JSON.parse(storedUser) : null;
+
+      if (localData && (localData.id || localData.userId)) {
+        try {
+          const userId = localData.id || localData.userId;
+          const API_BASE = "http://localhost:5075/api";
+
+          // 2. Gọi API lấy thông tin mới nhất từ Database
+          const res = await axios.get(`${API_BASE}/user/${userId}/get-user-by-id`);
+          let freshUser = res.data.user || res.data;
+
+          console.log("📥 Dữ liệu từ DB:", freshUser);
+
+          // 3. TỰ ĐỘNG CHUYỂN ĐỔI ĐỊA CHỈ -> TỌA ĐỘ (GEOCODING)
+          if (freshUser.address) {
+             try {
+                 const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(freshUser.address)}&limit=1`);
+                 const geoData = await geoRes.json();
+                 
+                 if (geoData && geoData.length > 0) {
+                     freshUser.location = [parseFloat(geoData[0].lat), parseFloat(geoData[0].lon)];
+                     console.log("📍 Đã tìm thấy tọa độ:", freshUser.location);
+                 }
+             } catch (geoErr) {
+                 console.error("Lỗi chuyển đổi địa chỉ:", geoErr);
+             }
+          }
+
+          if (localData.token) freshUser.token = localData.token;
+          setCurrentUser(freshUser);
+          localStorage.setItem("currentUser", JSON.stringify(freshUser));
+
+        } catch (err) {
+          console.error("Lỗi tải thông tin user:", err);
+          setCurrentUser(localData);
+        }
+      }
+      
+      // --- [MỚI] LOAD YÊU CẦU CỨU TRỢ TỪ API ---
+      try {
+        const API_BASE = "http://localhost:5075/api";
+        
+        // Gọi API lấy đơn đã duyệt (Accepted) và đang cứu (InProcess)
+        const [resAccepted, resInProcess] = await Promise.all([
+            axios.get(`${API_BASE}/reports/status/Accepted`).catch(() => ({ data: [] })),
+            axios.get(`${API_BASE}/reports/status/InProcess`).catch(() => ({ data: [] }))
+        ]);
+
+        const rawReports = [...(resAccepted.data || []), ...(resInProcess.data || [])];
+        console.log("📥 Đơn cứu trợ từ API:", rawReports);
+
+        const processedReports = [];
+        
+        // Duyệt qua từng đơn để tìm tọa độ (Geocoding)
+        for (const report of rawReports) {
+            let location = null;
+            if (report.address) {
+                try {
+                    // Gọi API bản đồ để chuyển địa chỉ thành tọa độ
+                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(report.address)}&limit=1`);
+                    const geoData = await geoRes.json();
+                    if (geoData && geoData.length > 0) {
+                        location = [parseFloat(geoData[0].lat), parseFloat(geoData[0].lon)];
+                    }
+                } catch (e) { console.error("Lỗi tìm tọa độ:", report.address); }
+            }
+
+            // Chỉ hiện những đơn tìm được tọa độ
+            if (location) {
+                processedReports.push({
+                    id: report.id,
+                    userId: report.phone,
+                    name: report.name,
+                    phone: report.phone,
+                    address: report.address,
+                    location: location, // Tọa độ mới tìm được
+                    type: report.level,
+                    description: report.details,
+                    // Map trạng thái từ Backend sang Frontend
+                    status: report.status === "Accepted" ? "approved" : "in_progress",
+                    rescuerName: report.rescuerName,
+                    rescuerPhone: report.rescuerPhone
+                });
+            }
+        }
+        
+        setRequests(processedReports);
+
+      } catch (err) {
+        console.error("Lỗi tải yêu cầu cứu trợ:", err);
+      }
+    };
+
+    initMapData();
+  }, []);
+
+  // --- CÁC LOGIC KHÁC (GIỮ NGUYÊN) ---
   const handleDrawRoute = (start, end) => {
     if (!mapRef.current) return;
-    if (routingControlRef.current) {
-      try { mapRef.current.removeControl(routingControlRef.current); } catch (e) {}
-    }
+    if (routingControlRef.current) { try { mapRef.current.removeControl(routingControlRef.current); } catch (e) {} }
     const routingControl = L.Routing.control({
       waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
       routeWhileDragging: false, show: false, addWaypoints: false, fitSelectedRoutes: true,
@@ -100,7 +194,6 @@ const MapPage = () => {
     routingControlRef.current = routingControl;
   };
 
-  // --- EFFECTS ---
   useEffect(() => {
     const fetchApiProvinces = async () => {
       try {
@@ -109,13 +202,6 @@ const MapPage = () => {
       } catch (error) { console.error("Lỗi API Tỉnh thành: ", error); }
     };
     fetchApiProvinces();
-  }, []);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("currentUser");
-    if (storedUser) setCurrentUser(JSON.parse(storedUser));
-    const storedRequests = localStorage.getItem("RELIEF_REQUESTS");
-    if (storedRequests) setRequests(JSON.parse(storedRequests));
   }, []);
 
   useEffect(() => {
@@ -151,7 +237,7 @@ const MapPage = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [wrapperRef]);
 
-  // --- AUTOCOMPLETE HANDLERS ---
+  // Handlers
   const filterUniqueSuggestions = (data) => {
     const seen = new Set();
     return data.filter((item) => {
@@ -174,10 +260,7 @@ const MapPage = () => {
     }, 200);
   };
 
-  const handleSelectSuggestion = (item) => {
-    setNewAddressInput(item.display_name);
-    setShowSuggestions(false);
-  };
+  const handleSelectSuggestion = (item) => { setNewAddressInput(item.display_name); setShowSuggestions(false); };
 
   const handleChooseProvince = async (province) => {
     setCurrentProvince(province); setShowLocaDropdown(false); setIsLoading(true);
@@ -191,105 +274,86 @@ const MapPage = () => {
     } catch (error) { navigate("/map"); } finally { setIsLoading(false); }
   };
 
-  // =========================================================
-  // [UPDATE] HÀM CẬP NHẬT ĐỊA CHỈ GỌI API BACKEND
-  // =========================================================
   const handleUpdateAddress = async () => {
     if (!newAddressInput.trim()) { alert("Vui lòng nhập địa chỉ bạn đang ở!"); return; }
-    
     setIsLoading(true);
     try {
-      // 1. Tìm tọa độ từ địa chỉ nhập vào
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newAddressInput)}&limit=1`);
       const data = await res.json();
-
       if (data && data.length > 0) {
         const lat = parseFloat(data[0].lat);
         const lon = parseFloat(data[0].lon);
         const newCoords = [lat, lon];
         const newAddressText = data[0].display_name;
 
-        // 2. [MỚI] GỌI API LƯU XUỐNG BACKEND
+        // Lưu xuống Backend
         const API_BASE = "http://localhost:5075/api";
         const userId = currentUser.id || currentUser.userId;
-
         if (userId) {
-            try {
-                await axios.post(
-                    `${API_BASE}/user/${userId}/address`,
-                    JSON.stringify(newAddressText), // Gửi chuỗi địa chỉ
-                    {
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem("accessToken")}`
-                        }
-                    }
-                );
-                console.log("✅ Đã lưu địa chỉ xuống Server");
-            } catch (apiError) {
-                console.error("❌ Lỗi API lưu địa chỉ:", apiError);
-                // Không return để vẫn cập nhật UI tạm thời cho người dùng
-            }
+            await axios.post(`${API_BASE}/user/${userId}/address`, JSON.stringify(newAddressText), {
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem("accessToken")}` }
+            });
         }
 
-        // 3. Cập nhật State & LocalStorage
-        const updatedUser = {
-          ...currentUser,
-          address: newAddressText,
-          location: newCoords,
-        };
-
+        const updatedUser = { ...currentUser, address: newAddressText, location: newCoords };
         setCurrentUser(updatedUser);
         localStorage.setItem("currentUser", JSON.stringify(updatedUser));
         setManualPosition(newCoords);
 
-        // Update trong danh sách pending (nếu có)
-        if (currentUser.role === "volunteer") {
-          const activeReqIndex = requests.findIndex((r) => (r.status === "in_progress" || r.status === "cancel_pending") && r.rescuerPhone === currentUser.phone);
-          if (activeReqIndex !== -1) {
-            const updatedRequests = [...requests];
-            updatedRequests[activeReqIndex] = { ...updatedRequests[activeReqIndex], rescuerLocation: newCoords };
-            setRequests(updatedRequests);
-            localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
-          }
-        }
-
         alert("Đã cập nhật vị trí thành công!");
-        setShowUpdateAddressModal(false);
-        setNewAddressInput("");
-      } else {
-        alert("❌ Không tìm thấy địa chỉ này trên bản đồ!");
-      }
+        setShowUpdateAddressModal(false); setNewAddressInput("");
+      } else { alert("❌ Không tìm thấy địa chỉ này trên bản đồ!"); }
+    } catch (error) { console.error(error); alert("Lỗi kết nối bản đồ."); } finally { setIsLoading(false); }
+  };
+
+  const handleCreateRequest = async () => {
+    // 1. Validate dữ liệu
+    if (!currentUser) { 
+      alert("Vui lòng đăng nhập."); 
+      return; 
+    }
+    if (!currentUser.address) { 
+      alert("Vui lòng cập nhật vị trí/địa chỉ của bạn trước khi gửi yêu cầu."); 
+      return; 
+    }
+
+    setIsLoading(true);
+
+    try {
+      const API_BASE = "http://localhost:5075/api";
+      
+      // 2. Chuẩn bị dữ liệu gửi lên
+      const payload = {
+        phone: currentUser.phone,
+        name: currentUser.fullName || currentUser.name,
+        address: currentUser.address,
+        details: reqDesc, 
+        level: reqType 
+      };
+
+      // 3. Gọi API
+      await axios.post(`${API_BASE}/reports`, payload, { 
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem("accessToken")}` } 
+      });
+
+      alert("✅ Đã gửi tín hiệu SOS thành công!");
+      
+      // Tải lại danh sách từ API để hiện Marker ngay nếu backend xử lý nhanh
+      // Hoặc có thể thêm tạm vào state 'requests'
+      setShowRequestForm(false);
+      setReqDesc("");
+
     } catch (error) {
-      console.error("Lỗi tìm kiếm tọa độ:", error);
-      alert("Lỗi kết nối bản đồ. Vui lòng thử lại.");
+      console.error("Lỗi tạo yêu cầu:", error);
+      alert("❌ Gửi yêu cầu thất bại.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --- CÁC HÀM XỬ LÝ KHÁC (GIỮ NGUYÊN) ---
-  const handleCreateRequest = () => {
-    if (!currentUser || !currentUser.location) { alert("Lỗi: Không tìm thấy vị trí của bạn."); return; }
-    const newRequest = {
-      id: Date.now(), userId: currentUser.phone, name: currentUser.fullName || currentUser.name, phone: currentUser.phone,
-      address: currentUser.address, location: currentUser.location, type: reqType, description: reqDesc, status: "pending", timestamp: new Date().toLocaleString(),
-    };
-    const updatedRequests = [...requests, newRequest];
-    setRequests(updatedRequests);
-    localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
-    alert("Đã gửi yêu cầu! Vui lòng chờ Admin duyệt.");
-    setShowRequestForm(false); setReqDesc("");
-  };
-
   const handleCitizenCancelRequest = (req) => {
     const confirm = window.confirm("Bạn đã an toàn và muốn hủy yêu cầu cứu trợ này?");
     if (!confirm) return;
-    if (req.status === "in_progress" && req.rescuerPhone) {
-      const notis = JSON.parse(localStorage.getItem("SYSTEM_NOTIFICATIONS") || "[]");
-      notis.push({ to: req.rescuerPhone, targetRole: "volunteer", message: `⚠️ Người dân ${req.name} đã hủy yêu cầu cứu trợ.`, time: new Date().toLocaleString(), isRead: false });
-      localStorage.setItem("SYSTEM_NOTIFICATIONS", JSON.stringify(notis));
-    }
     const updatedRequests = requests.map((r) => r.id === req.id ? { ...r, status: "canceled" } : r);
     setRequests(updatedRequests);
     localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
@@ -298,10 +362,7 @@ const MapPage = () => {
 
   const handleAcceptSupport = (request) => {
     if (!currentUser || currentUser.role !== "volunteer") return;
-    if (!currentUser.location) {
-      alert("Bạn cần cập nhật vị trí của mình trước khi nhận nhiệm vụ!");
-      setNewAddressInput(currentUser.address || ""); setShowUpdateAddressModal(true); return;
-    }
+    if (!currentUser.location) { alert("Bạn cần cập nhật vị trí của mình trước khi nhận nhiệm vụ!"); setNewAddressInput(currentUser.address || ""); setShowUpdateAddressModal(true); return; }
     const confirm = window.confirm(`Bạn có chắc chắn muốn nhận cứu trợ cho ${request.name}?`);
     if (!confirm) return;
     const updatedRequests = requests.map((r) => r.id === request.id ? { ...r, status: "in_progress", rescuerName: currentUser.fullName || currentUser.name, rescuerPhone: currentUser.phone, rescuerLocation: currentUser.location } : r);
@@ -331,7 +392,6 @@ const MapPage = () => {
     setShowCancelModal(false); setRequestToCancel(null);
   };
 
-  // --- LOGIC VỊ TRÍ ---
   const defaultPosition = [21.0285, 105.8542];
   const centerPosition = currentUser?.location || defaultPosition;
   const incomingPosition = location.state?.position;

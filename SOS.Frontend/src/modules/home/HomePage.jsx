@@ -56,9 +56,7 @@ const HomePage = () => {
     { id: 5, name: "Chùa Bằng (Linh Tiên Tự)", address: "63 Bằng Liệt, Hoàng Mai, Hà Nội", type: "Cơm từ thiện", status: "Đang hoạt động" },
   ];
 
-  // =========================================================
-  // 2. LOGIC ĐỒNG BỘ DỮ LIỆU & STATUS MỚI NHẤT
-  // =========================================================
+  // 2. LOGIC ĐỒNG BỘ DỮ LIỆU
   useEffect(() => {
     const syncUserData = async () => {
       const savedUserStr = localStorage.getItem("currentUser");
@@ -81,7 +79,6 @@ const HomePage = () => {
       }
     };
 
-    // Load điểm cứu trợ
     const storedPoints = localStorage.getItem("RELIEF_POINTS");
     if (storedPoints) setReliefPoints(JSON.parse(storedPoints));
     else setReliefPoints(initialReliefPoints);
@@ -99,7 +96,6 @@ const HomePage = () => {
 
   const getRoleDisplayName = (role) => {
     if (!role) return "";
-    // Nếu là Volunteer nhưng status chưa active thì hiển thị là Pending
     if (role === 'volunteer' && user?.status !== 'active') return "TNV (Chờ duyệt)";
     
     switch (role) {
@@ -110,31 +106,33 @@ const HomePage = () => {
     }
   };
 
-  // --- LOGIC QUAN TRỌNG NHẤT: PHÂN QUYỀN ---
-  // Chỉ cho phép quản lý nếu là Admin HOẶC (Volunteer VÀ status là 'active')
+  // --- PHÂN QUYỀN HIỂN THỊ NÚT ---
+  
+  // 1. Quyền quản lý điểm cứu trợ (Admin hoặc Volunteer Active)
   const canManagePoints = user && (
     user.role === "admin" || 
     (user.role === "volunteer" && user.status === "active")
   );
 
+  // 2. Quyền gửi SOS (Chỉ Người dân hoặc Volunteer CHƯA duyệt)
+  // [CẬP NHẬT] Volunteer đã active sẽ KHÔNG thấy nút này
+  const canRequestSOS = user && (
+      user.role === "citizen" || 
+      user.role === "volunteer-pending" || 
+      (user.role === "volunteer" && user.status !== "active") // Pending volunteer logic
+  );
+
   // --- Logic hiển thị thông báo Pending ---
   const renderNotifications = () => {
-    // Kiểm tra status Pending dựa trên API trả về
     const isPending = user?.role === "volunteer" && user?.status !== "active"; 
-    
     return (
       <div>
         {isPending && (
           <div style={{ padding: "15px", borderBottom: "1px solid #eee", backgroundColor: "#fff7ed" }}>
             <div style={{ fontWeight: "bold", color: "#b45309" }}>⏳ Trạng thái hồ sơ</div>
-            <div style={{ fontSize: "0.85rem" }}>
-                Tài khoản đang chờ Admin xét duyệt.<br/>
-                Bạn tạm thời chỉ có quyền như Người dân.
-            </div>
+            <div style={{ fontSize: "0.85rem" }}>Tài khoản đang chờ duyệt.<br/>Tạm thời chỉ có quyền Người dân.</div>
           </div>
         )}
-        
-        {/* Các thông báo khác nếu có */}
         {notifications.length === 0 && !isPending && (
              <div style={{ padding: "20px", color: "#999", textAlign: "center" }}>Không có thông báo mới.</div>
         )}
@@ -142,7 +140,7 @@ const HomePage = () => {
     );
   };
 
-  // --- Các Hook phụ (Map, Autocomplete...) ---
+  // --- Các Hook phụ ---
   useEffect(() => {
       if(user) {
         const allNotis = JSON.parse(localStorage.getItem("SYSTEM_NOTIFICATIONS") || "[]");
@@ -228,18 +226,17 @@ const HomePage = () => {
             <h1>Thông Tin Cứu Hộ</h1><p>Dự án cộng đồng nhằm thu thập và trực quan hóa thông tin liên quan đến cứu trợ.</p>
             <div className="lst-btn-hp">
                 <button className="btn-hero" onClick={() => navigate("/map")}>Xem Bản Đồ</button>
-                {/* Nút gửi yêu cầu hỗ trợ luôn hiện với Citizen, 
-                    hoặc Volunteer chưa active (vẫn tính là quyền citizen)
-                */}
-                <button className="btn-request" onClick={() => setShowRequestForm(true)}>Gửi yêu cầu hỗ trợ</button>
+                
+                {/* [ĐÃ SỬA] Nút này chỉ hiện nếu canRequestSOS = true */}
+                {canRequestSOS && (
+                    <button className="btn-request" onClick={() => setShowRequestForm(true)}>Gửi yêu cầu hỗ trợ</button>
+                )}
             </div>
           </div>
         </div>
         <div className="relief-points-section" style={{ padding: "40px 20px", width: "100%", maxWidth: "1600px", margin: "0 auto" }}>
           <div className="top-bar-table" style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", alignItems: "center" }}>
               <h2 style={{ color: "#333", margin: 0 }}>Danh Sách Các Điểm Cứu Trợ</h2>
-              
-              {/* Nút này chỉ hiện nếu canManagePoints = true (Admin hoặc Active Volunteer) */}
               {canManagePoints && (
                   <button className="btn-add-support" onClick={openAddModal} style={{ backgroundColor: "#15803d", color: "white", border: "none", padding: "10px 20px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "1rem" }}>
                       + Thêm điểm cứu trợ
@@ -257,8 +254,6 @@ const HomePage = () => {
                       <td style={{ padding: "16px", color: "#4a5568" }}>{point.type}</td>
                       <td style={{ padding: "16px", textAlign: "center" }}><span style={{ padding: "6px 12px", borderRadius: "20px", fontSize: "0.8rem", fontWeight: "600", backgroundColor: point.status === "Đang hoạt động" ? "#def7ec" : "#fde8e8", color: point.status === "Đang hoạt động" ? "#03543f" : "#9b1c1c", border: point.status === "Đang hoạt động" ? "1px solid #bcf0da" : "1px solid #fbd5d5" }}>{point.status}</span></td>
                       <td style={{ padding: "16px", textAlign: "center" }}><div style={{ display: "flex", justifyContent: "center", gap: "8px" }}><button onClick={() => handleViewOnMap(point)} style={{ cursor: "pointer", border: "1px solid #3b82f6", background: "white", color: "#3b82f6", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Xem vị trí</button>
-                      
-                      {/* Chỉ hiện Sửa/Xóa nếu có quyền */}
                       {canManagePoints && <><button onClick={() => openEditModal(point)} style={{ cursor: "pointer", border: "1px solid #f59e0b", background: "white", color: "#f59e0b", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Sửa</button><button onClick={() => handleDeletePoint(point.id)} style={{ cursor: "pointer", border: "1px solid #ef4444", background: "white", color: "#ef4444", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Xóa</button></>}</div></td>
                     </tr>
                   )) : <tr><td colSpan={canManagePoints ? 5 : 4} style={{ padding: "30px", textAlign: "center", color: "#666", fontStyle: "italic" }}>Chưa có điểm cứu trợ nào.</td></tr>}
@@ -268,7 +263,6 @@ const HomePage = () => {
         </div>
       </section>
       <footer className="site-footer"><div className="footer-bottom"><span>© 2025 Cứu Hộ App</span><span>|</span><button onClick={() => window.scrollTo(0, 0)}>Trang chủ</button><span>|</span><button onClick={() => navigate("/map")}>Bản đồ</button></div></footer>
-      {/* MODAL */}
       {showRequestForm && <Modal title="Gửi yêu cầu khẩn cấp" onClose={() => setShowRequestForm(false)}><div className="form-group"><label>Bạn cần giúp gì?</label><select value={reqType} onChange={(e) => setReqType(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}><option>Cần lương thực</option><option>Cần thuốc men / Y tế</option><option>Cần sơ tán khẩn cấp</option><option>Cần áo phao / Thuyền</option><option>Khác</option></select></div><div className="form-group" ref={wrapperRef}><label>Địa chỉ <span style={{ color: "red" }}>*</span></label><div className="address-input-container"><input type="text" value={reqAddress} onChange={handleReqAddressChange} onFocus={() => reqAddress && setActiveAutocomplete("sos") && setShowSuggestions(true)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #007bff" }} autoComplete="off" />{showSuggestions && activeAutocomplete === "sos" && suggestions.length > 0 && (<div className="suggestions-dropdown">{suggestions.map((item, index) => (<div key={index} className="suggestion-item" onClick={() => handleSelectSuggestion(item)}><span style={{ fontSize: "1.2rem" }}>📍</span><span className="suggestion-text">{item.display_name}</span></div>))}</div>)}</div></div><div className="form-group"><label>Mô tả</label><textarea value={reqDesc} onChange={(e) => setReqDesc(e.target.value)} style={{ width: "100%", padding: "10px" }} /></div><button className="btn-primary" style={{ backgroundColor: "#dc2626", marginTop: "10px" }} onClick={handleCreateRequest} disabled={isSubmitting}>Gửi</button></Modal>}
       {showAddPointModal && <Modal title={editingPoint ? "Cập nhật Điểm" : "Thêm Điểm Mới"} onClose={() => setShowAddPointModal(false)}><div className="form-group"><label>Tên điểm <span style={{ color: "red" }}>*</span></label><input type="text" value={newPointName} onChange={(e) => setNewPointName(e.target.value)} style={{ width: "100%", padding: "10px" }} /></div><div className="form-group" ref={pointWrapperRef}><label>Địa chỉ <span style={{ color: "red" }}>*</span></label><div className="address-input-container"><input type="text" value={newPointAddress} onChange={handlePointAddressChange} onFocus={() => newPointAddress && setActiveAutocomplete("point") && setShowSuggestions(true)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #007bff" }} autoComplete="off" />{showSuggestions && activeAutocomplete === "point" && suggestions.length > 0 && (<div className="suggestions-dropdown">{suggestions.map((item, index) => (<div key={index} className="suggestion-item" onClick={() => handleSelectSuggestion(item)}><span style={{ fontSize: "1.2rem" }}>📍</span><span className="suggestion-text">{item.display_name}</span></div>))}</div>)}</div></div><div className="form-group"><label>Loại hình</label><input type="text" value={newPointType} onChange={(e) => setNewPointType(e.target.value)} style={{ width: "100%", padding: "10px" }} /></div><div className="form-group"><label>Trạng thái</label><select value={newPointStatus} onChange={(e) => setNewPointStatus(e.target.value)} style={{ width: "100%", padding: "10px" }}><option>Đang hoạt động</option><option>Tạm ngưng</option><option>Đầy chỗ</option></select></div><div style={{ display: "flex", gap: "10px", marginTop: "10px" }}><button className="btn-primary" onClick={handleSavePoint} style={{ backgroundColor: "#15803d", flex: 1 }}>{editingPoint ? "Lưu" : "Thêm"}</button><button onClick={() => { setShowAddPointModal(false); resetPointForm(); }} style={{ backgroundColor: "#666", color: "white", padding: "10px", borderRadius: "5px", border: "none" }}>Hủy</button></div></Modal>}
     </div>
