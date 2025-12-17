@@ -17,5 +17,6 @@ namespace Sos.Domain.Interfaces
             CancellationToken ct = default
         );
 
+        Task<RescueTask?> GetTask(Guid reportId, CancellationToken ct = default);
     }
 }

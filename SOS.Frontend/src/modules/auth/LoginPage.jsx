@@ -99,51 +99,70 @@ const LoginPage = () => {
     try {
       setIsLoading(true);
 
-      // --- [LOGIC QUAN TRỌNG: CHỌN API DỰA TRÊN ROLE] ---
-      let apiEndpoint = `${API_BASE}/auth/verify-otp`; // Mặc định (Người dân)
-      
-      if (role === 'volunteer') {
-          apiEndpoint = `${API_BASE}/auth/verify-otp-become-a-volunteer`; // Dành cho Tình nguyện viên
+      // 1. Xác định Role mục tiêu (nếu chưa chọn gì thì mặc định là citizen)
+      const targetRole = role || 'citizen';
+
+      // 2. Chọn API dựa trên Role
+      let apiEndpoint = `${API_BASE}/auth/verify-otp`; 
+      if (targetRole === 'volunteer') {
+          apiEndpoint = `${API_BASE}/auth/verify-otp-become-a-volunteer`;
       }
 
-      console.log(`🚀 Đang gọi API: ${apiEndpoint} (Role: ${role})`);
+      console.log(`🚀 Đang gọi API: ${apiEndpoint} (Target Role: ${targetRole})`);
 
-      // Gọi API Verify
+      // 3. Gọi API Verify (GỬI THÊM FIELD ROLE)
+      // Việc gửi thêm 'role' giúp Backend phân biệt được user nào nếu SĐT bị trùng
       const verifyRes = await axios.post(apiEndpoint, {
         phone: phone,
         code: otp,
         fullName: fullName, 
+        role: targetRole // <--- QUAN TRỌNG: Gửi role lên để backend lọc
       });
 
-      // Lấy dữ liệu user (xử lý lồng nhau user.user nếu có)
+      // 4. Lấy dữ liệu user trả về
       let userData = verifyRes.data.user || verifyRes.data; 
+      console.log("✅ Dữ liệu từ Backend:", userData);
 
-      console.log("✅ Đăng nhập thành công:", userData);
+      // 5. Xử lý Logic hiển thị Role (Pending vs Active)
+      let finalRole = userData.role; // Lấy role gốc từ DB (citizen hoặc volunteer)
 
-      // Map ID chuẩn để lưu (quan trọng cho HomePage load lại)
+      // Nếu đang đăng nhập luồng Volunteer
+      if (targetRole === 'volunteer') {
+          // Nếu status là 'Pending' -> Ép kiểu về 'volunteer-pending' để UI hiện thông báo chờ
+          if (userData.status === 'Pending') {
+              finalRole = 'volunteer-pending';
+          }
+      }
+
+      // 6. Tạo object User chuẩn để lưu
       const currentUser = {
           ...userData,
-          id: userData.userId || userData.id, // Đảm bảo luôn có id
-          role: role === 'volunteer' ? 'volunteer' : (userData.role || 'citizen')
+          id: userData.userId || userData.id, // Đảm bảo luôn có ID
+          role: finalRole // Role đã qua xử lý logic
       };
 
-      // Lưu vào LocalStorage
+      // 7. Lưu vào LocalStorage
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
       if (verifyRes.data.token) {
           localStorage.setItem('accessToken', verifyRes.data.token);
       }
 
-      alert("Đăng nhập thành công!");
+      // Thông báo chi tiết hơn chút
+      const msg = finalRole === 'volunteer-pending' 
+          ? "Đăng ký thành công! Vui lòng chờ Admin duyệt." 
+          : "Đăng nhập thành công!";
+          
+      alert(msg);
       navigate('/home');
 
     } catch (error) {
       console.error("Lỗi xác thực:", error);
-      alert("Mã OTP không đúng hoặc có lỗi xảy ra.");
+      alert("Mã OTP không đúng hoặc có lỗi xảy ra phía Server.");
     } finally {
       setIsLoading(false);
     }
   };
-
+  
   return (
     <div style={containerStyle}>
       {step === 'ROLE_SELECT' && <RoleSelection onSelectRole={handleSelectRole} />}

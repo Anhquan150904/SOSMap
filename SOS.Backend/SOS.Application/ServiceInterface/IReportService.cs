@@ -1,4 +1,5 @@
 ﻿using Sos.Application.DTOs.ReportSosDto;
+using Sos.Domain.Entities;
 
 namespace Sos.Application.Interfaces
 {
@@ -14,5 +15,7 @@ namespace Sos.Application.Interfaces
         Task MarkTaskDoneAsync(Guid taskId, Guid volunteerId);
 
         Task<IEnumerable<TaskSummaryDto>> GetTasksByStatusAsync(string status);
+
+        Task<RescueTask?> GetTask(Guid reportId);
     }
 }

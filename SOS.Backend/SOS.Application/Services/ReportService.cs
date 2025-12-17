@@ -96,7 +96,7 @@ namespace Sos.Application.Services
             {
                 ReportId = reportId,
                 VolunteerId = volunteerId,
-                Status = "accepted",
+                Status = "in_progress",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -174,6 +174,11 @@ namespace Sos.Application.Services
                 Status = t.Status,
                 CreatedAt = t.CreatedAt
             });
+        }
+
+        public async Task<RescueTask?> GetTask (Guid reportId)
+        {
+            return await _taskRepo.GetTask(reportId);
         }
 
 
