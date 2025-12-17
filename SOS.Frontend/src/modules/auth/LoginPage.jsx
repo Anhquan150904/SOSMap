@@ -67,8 +67,7 @@ const LoginPage = () => {
       
       console.log("📦 Kết quả Send OTP:", res.data);
 
-      // Kiểm tra user cũ hay mới (Dựa vào response backend)
-      // Nếu backend trả về otp.isExistingUser thì dùng, nếu không mặc định false
+      // Kiểm tra user cũ hay mới
       const isExisting = res.data.otp?.isExistingUser === true;
 
       if (isExisting) {
@@ -88,7 +87,7 @@ const LoginPage = () => {
     }
   };
 
-  // --- 3. XÁC THỰC & ĐĂNG NHẬP (QUAN TRỌNG) ---
+  // --- 3. XÁC THỰC & ĐĂNG NHẬP (CÓ CHIA API THEO ROLE) ---
   const handleVerifyAndLogin = async () => {
     if (!otp) { alert("Vui lòng nhập mã OTP"); return; }
     
@@ -100,32 +99,39 @@ const LoginPage = () => {
     try {
       setIsLoading(true);
 
+      // --- [LOGIC QUAN TRỌNG: CHỌN API DỰA TRÊN ROLE] ---
+      let apiEndpoint = `${API_BASE}/auth/verify-otp`; // Mặc định (Người dân)
+      
+      if (role === 'volunteer') {
+          apiEndpoint = `${API_BASE}/auth/verify-otp-become-a-volunteer`; // Dành cho Tình nguyện viên
+      }
+
+      console.log(`🚀 Đang gọi API: ${apiEndpoint} (Role: ${role})`);
+
       // Gọi API Verify
-      const verifyRes = await axios.post(`${API_BASE}/auth/verify-otp`, {
+      const verifyRes = await axios.post(apiEndpoint, {
         phone: phone,
         code: otp,
         fullName: fullName, 
       });
 
-      // [SỬA LỖI Ở ĐÂY] 
-      // API trả về trực tiếp object User: { userId: "...", fullName: "...", ... }
-      // Chứ không phải { user: {...} }
-      const userData = verifyRes.data; 
+      // Lấy dữ liệu user (xử lý lồng nhau user.user nếu có)
+      let userData = verifyRes.data.user || verifyRes.data; 
 
       console.log("✅ Đăng nhập thành công:", userData);
 
-      // Tạo object session chuẩn để lưu (bắt buộc phải có ID)
+      // Map ID chuẩn để lưu (quan trọng cho HomePage load lại)
       const currentUser = {
-          ...userData,                 // Lấy hết các trường từ API (phone, fullName, status...)
-          id: userData.userId,         // [QUAN TRỌNG] Map userId thành id để HomePage dùng
-          role: role === 'volunteer' ? 'volunteer' : (userData.role || 'citizen') // Ưu tiên role user chọn hoặc từ DB
+          ...userData,
+          id: userData.userId || userData.id, // Đảm bảo luôn có id
+          role: role === 'volunteer' ? 'volunteer' : (userData.role || 'citizen')
       };
 
       // Lưu vào LocalStorage
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
-      // Nếu backend có trả token ở header hoặc chỗ khác thì lưu thêm, 
-      // nhưng hiện tại ta tập trung vào việc lưu ID user.
+      if (verifyRes.data.token) {
+          localStorage.setItem('accessToken', verifyRes.data.token);
+      }
 
       alert("Đăng nhập thành công!");
       navigate('/home');
@@ -187,13 +193,6 @@ const LoginPage = () => {
                     <input 
                     style={inputStyle} type="text" placeholder="Nguyễn Văn A" 
                     value={fullName} onChange={(e) => setFullName(e.target.value)}
-                    />
-                </div>
-                <div>
-                    <label>Địa chỉ (Tùy chọn):</label>
-                    <input 
-                    style={inputStyle} type="text" placeholder="Hà Nội..." 
-                    value={address} onChange={(e) => setAddress(e.target.value)}
                     />
                 </div>
               </>

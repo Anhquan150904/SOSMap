@@ -8,7 +8,7 @@ import "./HomePage.css";
 const HomePage = () => {
   const navigate = useNavigate();
   
-  // 1. KHỞI TẠO USER TỪ LOCALSTORAGE
+  // 1. KHỞI TẠO USER
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("currentUser");
     return savedUser ? JSON.parse(savedUser) : null;
@@ -57,45 +57,23 @@ const HomePage = () => {
   ];
 
   // =========================================================
-  // 2. LOGIC ĐỒNG BỘ DỮ LIỆU TỪ BACKEND (ĐÃ SỬA LỖI)
+  // 2. LOGIC ĐỒNG BỘ DỮ LIỆU & STATUS MỚI NHẤT
   // =========================================================
   useEffect(() => {
     const syncUserData = async () => {
-      // Lấy lại dữ liệu từ localStorage (Không dùng biến savedUser cũ gây lỗi)
-      const storageData = localStorage.getItem("currentUser");
-      
-      if (storageData) {
+      const savedUserStr = localStorage.getItem("currentUser");
+      if (savedUserStr) {
         try {
-            const localData = JSON.parse(storageData);
-            // Tìm ID (Backend trả về 'userId' hoặc 'id')
+            const localData = JSON.parse(savedUserStr);
             const userId = localData.id || localData.userId;
 
             if (userId) {
-                console.log(`🚀 Đang lấy thông tin mới nhất cho ID: ${userId}`);
-                
-                // Gọi API
                 const res = await axios.get(`http://localhost:5075/api/user/${userId}/get-user-by-id`);
-                
                 if (res.data) {
-                    console.log("📦 Dữ liệu thô từ Backend:", res.data);
-
-                    // --- [FIX QUAN TRỌNG: BÓC TÁCH DỮ LIỆU] ---
-                    // API trả về { user: {...} }, ta cần lấy cái lõi bên trong
-                    let realUser = res.data;
-                    if (res.data.user) {
-                        realUser = res.data.user; 
-                    }
-
-                    console.log("✅ Dữ liệu User chuẩn bị hiển thị:", realUser);
-                    
-                    // Cập nhật State
+                    let realUser = res.data.user || res.data; 
                     setUser(realUser);
-                    
-                    // Lưu đè vào LocalStorage
                     localStorage.setItem("currentUser", JSON.stringify(realUser));
                 }
-            } else {
-                console.warn("⚠️ LocalStorage bị lỗi (thiếu ID). Vui lòng Đăng xuất và Đăng nhập lại.");
             }
         } catch (error) {
             console.error("❌ Lỗi API User:", error);
@@ -105,16 +83,13 @@ const HomePage = () => {
 
     // Load điểm cứu trợ
     const storedPoints = localStorage.getItem("RELIEF_POINTS");
-    if (storedPoints) {
-        setReliefPoints(JSON.parse(storedPoints));
-    } else {
-        setReliefPoints(initialReliefPoints);
-    }
+    if (storedPoints) setReliefPoints(JSON.parse(storedPoints));
+    else setReliefPoints(initialReliefPoints);
 
     syncUserData();
   }, []);
 
-  // Các hàm phụ trợ
+  // --- HELPER LOGIC ---
   const handleLogout = () => {
     localStorage.removeItem("currentUser");
     localStorage.removeItem("accessToken");
@@ -124,26 +99,54 @@ const HomePage = () => {
 
   const getRoleDisplayName = (role) => {
     if (!role) return "";
-    const r = role.toLowerCase();
-    switch (r) {
+    // Nếu là Volunteer nhưng status chưa active thì hiển thị là Pending
+    if (role === 'volunteer' && user?.status !== 'active') return "TNV (Chờ duyệt)";
+    
+    switch (role) {
       case "citizen": return "Người Dân";
       case "volunteer": return "Tình Nguyện Viên";
-      case "volunteer-pending": return "TNV (Chờ duyệt)";
       case "admin": return "Quản Trị Viên";
       default: return role;
     }
   };
 
-  // --- LOGIC Notifications & Map (Giữ nguyên) ---
+  // --- LOGIC QUAN TRỌNG NHẤT: PHÂN QUYỀN ---
+  // Chỉ cho phép quản lý nếu là Admin HOẶC (Volunteer VÀ status là 'active')
+  const canManagePoints = user && (
+    user.role === "admin" || 
+    (user.role === "volunteer" && user.status === "active")
+  );
+
+  // --- Logic hiển thị thông báo Pending ---
+  const renderNotifications = () => {
+    // Kiểm tra status Pending dựa trên API trả về
+    const isPending = user?.role === "volunteer" && user?.status !== "active"; 
+    
+    return (
+      <div>
+        {isPending && (
+          <div style={{ padding: "15px", borderBottom: "1px solid #eee", backgroundColor: "#fff7ed" }}>
+            <div style={{ fontWeight: "bold", color: "#b45309" }}>⏳ Trạng thái hồ sơ</div>
+            <div style={{ fontSize: "0.85rem" }}>
+                Tài khoản đang chờ Admin xét duyệt.<br/>
+                Bạn tạm thời chỉ có quyền như Người dân.
+            </div>
+          </div>
+        )}
+        
+        {/* Các thông báo khác nếu có */}
+        {notifications.length === 0 && !isPending && (
+             <div style={{ padding: "20px", color: "#999", textAlign: "center" }}>Không có thông báo mới.</div>
+        )}
+      </div>
+    );
+  };
+
+  // --- Các Hook phụ (Map, Autocomplete...) ---
   useEffect(() => {
       if(user) {
         const allNotis = JSON.parse(localStorage.getItem("SYSTEM_NOTIFICATIONS") || "[]");
-        const myNotis = allNotis.filter((n) => {
-            const isMyPhone = String(n.to) === String(user.phone);
-            const isMyRole = n.targetRole ? n.targetRole === user.role : true;
-            return isMyPhone && isMyRole;
-        }).reverse();
-        setNotifications(myNotis);
+        setNotifications(allNotis);
       }
   }, [user]);
 
@@ -151,8 +154,7 @@ const HomePage = () => {
     const fetchApiProvinces = async () => {
       try {
         const res = await fetch("https://provinces.open-api.vn/api/v2/?depth=1");
-        const data = await res.json();
-        setProvinces(data);
+        setProvinces(await res.json());
       } catch (error) { console.error("Lỗi API Tỉnh: ", error); }
     };
     fetchApiProvinces();
@@ -170,6 +172,7 @@ const HomePage = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [wrapperRef, pointWrapperRef]);
 
+  // Handlers rút gọn
   const filterUniqueSuggestions = (data) => { const seen = new Set(); return data.filter((item) => { const duplicate = seen.has(item.display_name); seen.add(item.display_name); return !duplicate; }); };
   const fetchSuggestions = (query) => { if (debounceRef.current) clearTimeout(debounceRef.current); debounceRef.current = setTimeout(async () => { try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=vn`); const data = await res.json(); setSuggestions(filterUniqueSuggestions(data)); setShowSuggestions(true); } catch (error) { console.error("Lỗi gợi ý:", error); } }, 200); };
   const handleReqAddressChange = (e) => { const value = e.target.value; setReqAddress(value); setActiveAutocomplete("sos"); if (!value.trim()) { setSuggestions([]); setShowSuggestions(false); return; } fetchSuggestions(value); };
@@ -183,10 +186,6 @@ const HomePage = () => {
   const handleViewOnMap = async (point) => { setIsLoading(true); try { if (!point.location) { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(point.address)}&limit=1`); const data = await res.json(); if (data && data.length > 0) { const lat = parseFloat(data[0].lat); const lon = parseFloat(data[0].lon); navigate("/map", { state: { position: [lat, lon], name: point.name } }); } else { alert("Không tìm thấy tọa độ!"); navigate("/map"); } } else { navigate("/map", { state: { position: point.location, name: point.name } }); } } catch (error) { navigate("/map"); } finally { setIsLoading(false); } };
   const handleCreateRequest = async () => { if (!user) { alert("Vui lòng đăng nhập."); return; } if (!reqAddress.trim()) { alert("Vui lòng nhập địa chỉ."); return; } setIsSubmitting(true); try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(reqAddress)}&limit=1`); const data = await res.json(); let finalLocation = user.location; let finalAddress = reqAddress; if (data && data.length > 0) { finalLocation = [parseFloat(data[0].lat), parseFloat(data[0].lon)]; finalAddress = data[0].display_name; } else { if (!finalLocation) { alert("Không tìm thấy tọa độ."); setIsSubmitting(false); return; } if (!window.confirm("Không tìm thấy tọa độ mới. Dùng vị trí cũ?")) { setIsSubmitting(false); return; } } const requests = JSON.parse(localStorage.getItem("RELIEF_REQUESTS") || "[]"); const newRequest = { id: Date.now(), userId: user.phone, name: user.fullName || user.name, phone: user.phone, address: finalAddress, location: finalLocation, type: reqType, description: reqDesc, status: "pending", timestamp: new Date().toLocaleString(), }; localStorage.setItem("RELIEF_REQUESTS", JSON.stringify([...requests, newRequest])); alert("✅ Gửi thành công!"); setShowRequestForm(false); setReqDesc(""); } catch (error) { alert("Lỗi xử lý."); } finally { setIsSubmitting(false); } };
   const handleChooseProvince = async (province) => { setCurrentProvince(province); setShowLocaDropdown(false); setIsLoading(true); try { const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(province.name + ", Việt Nam")}&format=json&limit=1`); const data = await res.json(); if (data && data.length > 0) { navigate("/map", { state: { position: [parseFloat(data[0].lat), parseFloat(data[0].lon)], name: province.name } }); } else { navigate("/map", { state: { name: province.name } }); } } catch (error) { navigate("/map"); } finally { setIsLoading(false); } };
-  
-  const renderNotifications = () => { const isPending = user?.role === "volunteer-pending"; const isOfficialVolunteer = user?.role === "volunteer"; const hasMessages = notifications.length > 0; if (!hasMessages && !isPending && !isOfficialVolunteer) return <div style={{ padding: "20px", color: "#999", textAlign: "center" }}>Không có thông báo mới.</div>; return ( <div> {isPending && <div style={{ padding: "15px", borderBottom: "1px solid #eee", backgroundColor: "#fff7ed" }}><div style={{ fontWeight: "bold", color: "#b45309" }}>⏳ Trạng thái hồ sơ</div><div style={{ fontSize: "0.85rem" }}>Hồ sơ đang chờ xét duyệt.</div></div>} {isOfficialVolunteer && <div style={{ padding: "15px", borderBottom: "1px solid #eee", backgroundColor: "#f0fdf4" }}><div style={{ fontWeight: "bold", color: "#15803d" }}>✅ Trạng thái hồ sơ</div><div style={{ fontSize: "0.85rem" }}>Bạn là Tình nguyện viên chính thức.</div></div>} {notifications.map((note, idx) => ( <div key={idx} style={{ padding: "15px", borderBottom: "1px solid #eee", backgroundColor: "#fff" }}> <div style={{ fontWeight: "bold", color: "#007bff", display: "flex", justifyContent: "space-between" }}><span>🔔 Hệ thống</span><span style={{ fontSize: "0.7rem", color: "#999" }}>{note.time.split(" ")[1]}</span></div> <div style={{ fontSize: "0.85rem" }}>{note.message}</div> </div> ))} </div> ); };
-  const hasNotification = user?.role === "volunteer-pending" || notifications.length > 0;
-  const canManagePoints = user && (user.role === "admin" || user.role === "volunteer");
 
   return (
     <div className="homepage">
@@ -211,12 +210,9 @@ const HomePage = () => {
                 {showNotiDropdown && <div style={{ position: "absolute", top: "35px", right: "-10px", width: "320px", backgroundColor: "white", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", borderRadius: "8px", zIndex: 1000, border: "1px solid #eee", overflow: "hidden" }}><div style={{ padding: "15px", borderBottom: "1px solid #eee", fontWeight: "bold", background: "#f9fafb", fontSize: "1rem" }}>Thông báo</div><div className="notification-list" style={{ maxHeight: "350px", overflowY: "auto" }}>{renderNotifications()}</div></div>}
               </div>
               <div className="user-profile" onClick={() => setShowProfileDropdown(!showProfileDropdown)} style={{ cursor: "pointer" }}>
-                
-                {/* --- [HIỂN THỊ TÊN VÀ ROLE CHUẨN] --- */}
                 <span className="user-name">
                   Xin chào, <strong>{user?.fullName || user?.name || "Bạn"}</strong> <small>({getRoleDisplayName(user.role)})</small> ▾
                 </span>
-
                 {showProfileDropdown && <div className="dropdown-menu"><div className="dropdown-item" onClick={handleLogout}>Đăng xuất</div></div>}
               </div>
             </div>
@@ -226,16 +222,30 @@ const HomePage = () => {
         </nav>
       </header>
       
-      {/* ... (Phần Hero và Danh sách giữ nguyên) ... */}
       <section className="hero-section">
         <div className="hero-content">
           <div className="hero-content--text">
             <h1>Thông Tin Cứu Hộ</h1><p>Dự án cộng đồng nhằm thu thập và trực quan hóa thông tin liên quan đến cứu trợ.</p>
-            <div className="lst-btn-hp"><button className="btn-hero" onClick={() => navigate("/map")}>Xem Bản Đồ</button>{(user?.role === "citizen" || user?.role === "volunteer-pending" || user?.role === "rescuee") && <button className="btn-request" onClick={() => setShowRequestForm(true)}>Gửi yêu cầu hỗ trợ</button>}</div>
+            <div className="lst-btn-hp">
+                <button className="btn-hero" onClick={() => navigate("/map")}>Xem Bản Đồ</button>
+                {/* Nút gửi yêu cầu hỗ trợ luôn hiện với Citizen, 
+                    hoặc Volunteer chưa active (vẫn tính là quyền citizen)
+                */}
+                <button className="btn-request" onClick={() => setShowRequestForm(true)}>Gửi yêu cầu hỗ trợ</button>
+            </div>
           </div>
         </div>
         <div className="relief-points-section" style={{ padding: "40px 20px", width: "100%", maxWidth: "1600px", margin: "0 auto" }}>
-          <div className="top-bar-table" style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", alignItems: "center" }}><h2 style={{ color: "#333", margin: 0 }}>Danh Sách Các Điểm Cứu Trợ</h2>{canManagePoints && <button className="btn-add-support" onClick={openAddModal} style={{ backgroundColor: "#15803d", color: "white", border: "none", padding: "10px 20px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "1rem" }}>+ Thêm điểm cứu trợ</button>}</div>
+          <div className="top-bar-table" style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", alignItems: "center" }}>
+              <h2 style={{ color: "#333", margin: 0 }}>Danh Sách Các Điểm Cứu Trợ</h2>
+              
+              {/* Nút này chỉ hiện nếu canManagePoints = true (Admin hoặc Active Volunteer) */}
+              {canManagePoints && (
+                  <button className="btn-add-support" onClick={openAddModal} style={{ backgroundColor: "#15803d", color: "white", border: "none", padding: "10px 20px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "1rem" }}>
+                      + Thêm điểm cứu trợ
+                  </button>
+              )}
+          </div>
           <div style={{ overflowX: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", borderRadius: "10px", border: "1px solid #eee" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white", minWidth: "900px" }}>
               <thead><tr style={{ backgroundColor: "#f8f9fa", color: "#333", borderBottom: "2px solid #eee" }}><th style={{ padding: "16px", textAlign: "left", fontSize: "0.95rem" }}>Tên Điểm Cứu Trợ</th><th style={{ padding: "16px", textAlign: "left", fontSize: "0.95rem" }}>Địa Chỉ</th><th style={{ padding: "16px", textAlign: "left", fontSize: "0.95rem" }}>Loại Hình Hỗ Trợ</th><th style={{ padding: "16px", textAlign: "center", fontSize: "0.95rem" }}>Trạng Thái</th><th style={{ padding: "16px", textAlign: "center", fontSize: "0.95rem" }}>Hành động</th></tr></thead>
@@ -246,7 +256,10 @@ const HomePage = () => {
                       <td style={{ padding: "16px", color: "#4a5568" }}>{point.address}</td>
                       <td style={{ padding: "16px", color: "#4a5568" }}>{point.type}</td>
                       <td style={{ padding: "16px", textAlign: "center" }}><span style={{ padding: "6px 12px", borderRadius: "20px", fontSize: "0.8rem", fontWeight: "600", backgroundColor: point.status === "Đang hoạt động" ? "#def7ec" : "#fde8e8", color: point.status === "Đang hoạt động" ? "#03543f" : "#9b1c1c", border: point.status === "Đang hoạt động" ? "1px solid #bcf0da" : "1px solid #fbd5d5" }}>{point.status}</span></td>
-                      <td style={{ padding: "16px", textAlign: "center" }}><div style={{ display: "flex", justifyContent: "center", gap: "8px" }}><button onClick={() => handleViewOnMap(point)} style={{ cursor: "pointer", border: "1px solid #3b82f6", background: "white", color: "#3b82f6", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Xem vị trí</button>{canManagePoints && <><button onClick={() => openEditModal(point)} style={{ cursor: "pointer", border: "1px solid #f59e0b", background: "white", color: "#f59e0b", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Sửa</button><button onClick={() => handleDeletePoint(point.id)} style={{ cursor: "pointer", border: "1px solid #ef4444", background: "white", color: "#ef4444", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Xóa</button></>}</div></td>
+                      <td style={{ padding: "16px", textAlign: "center" }}><div style={{ display: "flex", justifyContent: "center", gap: "8px" }}><button onClick={() => handleViewOnMap(point)} style={{ cursor: "pointer", border: "1px solid #3b82f6", background: "white", color: "#3b82f6", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Xem vị trí</button>
+                      
+                      {/* Chỉ hiện Sửa/Xóa nếu có quyền */}
+                      {canManagePoints && <><button onClick={() => openEditModal(point)} style={{ cursor: "pointer", border: "1px solid #f59e0b", background: "white", color: "#f59e0b", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Sửa</button><button onClick={() => handleDeletePoint(point.id)} style={{ cursor: "pointer", border: "1px solid #ef4444", background: "white", color: "#ef4444", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Xóa</button></>}</div></td>
                     </tr>
                   )) : <tr><td colSpan={canManagePoints ? 5 : 4} style={{ padding: "30px", textAlign: "center", color: "#666", fontStyle: "italic" }}>Chưa có điểm cứu trợ nào.</td></tr>}
               </tbody>

@@ -1,141 +1,110 @@
+// src/pages/AdminDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import "./AdminDashboard.css";
+
+const API_BASE = "http://localhost:5075/api";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("requests"); // 'requests' | 'users'
-  const [requests, setRequests] = useState([]);
+  const [activeTab, setActiveTab] = useState("requests");
   const [pendingVolunteers, setPendingVolunteers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
+  // --- 1. LOAD DỮ LIỆU ---
   useEffect(() => {
-    const storedReqs = localStorage.getItem("RELIEF_REQUESTS");
-    if (storedReqs) setRequests(JSON.parse(storedReqs));
-
-    const storedPendingVols = localStorage.getItem("VOLUNTEER_APPROVALS");
-    if (storedPendingVols) setPendingVolunteers(JSON.parse(storedPendingVols));
-
-    const userDB = JSON.parse(localStorage.getItem("USER_DATABASE") || "{}");
-    setAllUsers(Object.values(userDB));
+    fetchRealData();
   }, []);
 
-  // --- [UPDATE] GỬI THÔNG BÁO KÈM ROLE ---
-  const sendNotification = (phoneNumber, message, role) => {
-    const notis = JSON.parse(
-      localStorage.getItem("SYSTEM_NOTIFICATIONS") || "[]"
-    );
-    notis.push({
-      to: phoneNumber,
-      targetRole: role, // Quan trọng: Xác định role nhận tin
-      message: message,
-      time: new Date().toLocaleString(),
-      isRead: false,
-    });
-    localStorage.setItem("SYSTEM_NOTIFICATIONS", JSON.stringify(notis));
-  };
+  const fetchRealData = async () => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } };
 
-  const handleApproveRequest = (id) => {
-    const updatedRequests = requests.map((req) =>
-      req.id === id ? { ...req, status: "approved" } : req
-    );
-    setRequests(updatedRequests);
-    localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
-  };
+      // 1. Lấy danh sách chờ duyệt (Pending)
+      // Lưu ý: Tên status có thể phân biệt hoa thường, thử 'Pending' trước
+      const resPending = await axios.get(`${API_BASE}/user/by-status/Pending`, config);
+      const listPending = resPending.data || [];
 
-  const handleApproveVolunteer = (volUser) => {
-    const userDB = JSON.parse(localStorage.getItem("USER_DATABASE") || "{}");
-    const oldKey = `${volUser.phone}_volunteer-pending`;
-    const newKey = `${volUser.phone}_volunteer`;
+      // Lọc ra những người đăng ký làm Volunteer
+      const volunteersPending = listPending.filter(u => u.role === 'volunteer');
+      setPendingVolunteers(volunteersPending);
 
-    if (userDB[oldKey]) {
-      const updatedUser = { ...userDB[oldKey], role: "volunteer" };
-      delete userDB[oldKey];
-      userDB[newKey] = updatedUser;
-      localStorage.setItem("USER_DATABASE", JSON.stringify(userDB));
+      // 2. Lấy danh sách đang hoạt động (Active)
+      // Để hiển thị bên tab "Danh sách User"
+      const resActive = await axios.get(`${API_BASE}/user/by-status/active`, config);
+      const listActive = resActive.data || [];
+
+      // 3. Gộp lại để hiển thị tất cả
+      // (Dùng Set hoặc Map để loại bỏ trùng lặp nếu có)
+      const combinedUsers = [...listPending, ...listActive];
+      
+      // Sắp xếp ID giảm dần hoặc theo tên (tùy chọn)
+      setAllUsers(combinedUsers);
+
+      console.log("✅ Đã tải xong dữ liệu:", { pending: volunteersPending.length, total: combinedUsers.length });
+
+    } catch (error) {
+      console.error("Lỗi tải dữ liệu:", error);
+      // Nếu API trả lỗi 404 cho 'active', có thể thử 'Active' (viết hoa chữ A)
     }
-
-    const newPendingList = pendingVolunteers.filter(
-      (v) => v.phone !== volUser.phone
-    );
-    setPendingVolunteers(newPendingList);
-    localStorage.setItem("VOLUNTEER_APPROVALS", JSON.stringify(newPendingList));
-
-    // Gửi thông báo cho Volunteer
-    sendNotification(
-      volUser.phone,
-      "🎉 Chúc mừng! Hồ sơ Tình nguyện viên của bạn đã được duyệt.",
-      "volunteer"
-    );
-    alert(`Đã duyệt ${volUser.name} thành Tình nguyện viên!`);
   };
 
-  const handleApproveCancel = (req) => {
-    const confirm = window.confirm(
-      `Bạn có chắc muốn cho phép hủy nhiệm vụ này không?`
-    );
-    if (!confirm) return;
+  // --- 2. XỬ LÝ DUYỆT (API THẬT) ---
+  const handleApproveVolunteer = async (user) => {
+    if (!window.confirm(`Duyệt thành viên ${user.fullName} làm Tình Nguyện Viên?`)) return;
 
-    // 1. Gửi cho Volunteer (role: volunteer)
-    sendNotification(
-      req.rescuerPhone,
-      `✅ Yêu cầu hủy nhiệm vụ cứu trợ "${req.name}" đã được chấp thuận.`,
-      "volunteer"
-    );
-
-    // 2. Gửi cho Citizen (role: citizen)
-    sendNotification(
-      req.userId,
-      `⚠️ Tình nguyện viên ${req.rescuerName} đã hủy hỗ trợ vì lý do: "${req.cancelReason}". Hệ thống đang tìm người khác.`,
-      "citizen"
-    );
-
-    const updatedRequests = requests.map((r) =>
-      r.id === req.id
-        ? {
-            ...r,
-            status: "approved",
-            rescuerName: null,
-            rescuerPhone: null,
-            rescuerLocation: null,
-            cancelReason: null,
+    setIsLoading(true);
+    try {
+      // ID user có thể là id hoặc userId tùy API trả về
+      const targetId = user.id || user.userId;
+      console.log(`🚀 Đang duyệt ID: ${targetId}`);
+      
+      await axios.post(
+        `${API_BASE}/admin/user/${targetId}/accept-to-volunteer`,
+        {}, 
+        {
+          headers: { 
+            Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
+            'Content-Type': 'application/json'
           }
-        : r
-    );
-    setRequests(updatedRequests);
-    localStorage.setItem("RELIEF_REQUESTS", JSON.stringify(updatedRequests));
+        }
+      );
+
+      alert("✅ Duyệt thành công!");
+      fetchRealData(); // Load lại danh sách
+
+    } catch (error) {
+      console.error("Lỗi duyệt:", error);
+      alert("Lỗi khi duyệt. Kiểm tra lại console.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogout = () => {
     localStorage.removeItem("currentUser");
-    navigate("/");
+    localStorage.removeItem("accessToken");
+    navigate("/admin-login");
   };
 
-  // --- HELPER: RENDER BẢNG DỮ LIỆU ---
+  // --- HELPER: RENDER TABLE ---
   const renderTable = (data, columns, renderRow) => (
-    <table className="adminf-table">
-      <thead>
-        <tr>
-          {columns.map((col, idx) => (
-            <th key={idx}>{col}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {data.length === 0 ? (
-          <tr>
-            <td
-              colSpan={columns.length}
-              style={{ textAlign: "center", padding: "20px" }}
-            >
-              Không có dữ liệu
-            </td>
-          </tr>
-        ) : (
-          data.map((item, idx) => renderRow(item, idx))
-        )}
-      </tbody>
-    </table>
+    <div className="table-container">
+      <table className="admin-table">
+        <thead>
+          <tr>{columns.map((col, idx) => <th key={idx}>{col}</th>)}</tr>
+        </thead>
+        <tbody>
+          {data.length === 0 ? (
+            <tr><td colSpan={columns.length} style={{ textAlign: "center", padding: "20px" }}>Không có dữ liệu</td></tr>
+          ) : (
+            data.map((item, idx) => renderRow(item, idx))
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 
   return (
@@ -143,240 +112,73 @@ const AdminDashboard = () => {
       <header className="admin-header">
         <h2>🛡️ Admin Control Center</h2>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button
-            onClick={() => setActiveTab("requests")}
-            style={{
-              opacity: activeTab === "requests" ? 1 : 0.6,
-              backgroundColor: "transparent",
-              border: "none",
-              cursor: "pointer",
-              color: "white",
-              fontWeight: "bold",
-            }}
-          >
-            <h2>Quản lý Đơn</h2>
-          </button>
-          <button
-            onClick={() => setActiveTab("users")}
-            style={{
-              opacity: activeTab === "users" ? 1 : 0.6,
-              backgroundColor: "transparent",
-              border: "none",
-              cursor: "pointer",
-              color: "white",
-              fontWeight: "bold",
-            }}
-          >
-            <h2>Danh sách User</h2>
-          </button>
-
-          <button onClick={handleLogout} className="btn-logout">
-            Đăng xuất
-          </button>
+          <button onClick={() => setActiveTab("requests")} style={{ opacity: activeTab === "requests" ? 1 : 0.6, background: "transparent", border: "none", color: "white", fontWeight: "bold", cursor: "pointer" }}><h2>Quản lý</h2></button>
+          <button onClick={() => setActiveTab("users")} style={{ opacity: activeTab === "users" ? 1 : 0.6, background: "transparent", border: "none", color: "white", fontWeight: "bold", cursor: "pointer" }}><h2>Users</h2></button>
+          <button onClick={handleLogout} className="btn-logout">Đăng xuất</button>
         </div>
       </header>
 
       <div className="dashboard-container">
-        {/* --- TAB 1: QUẢN LÝ ĐƠN --- */}
+        
+        {/* TAB 1: QUẢN LÝ */}
         {activeTab === "requests" && (
           <div className="requests-section">
-            {/* 1. YÊU CẦU HỦY (Ưu tiên) */}
-            <div className="section-block danger-block">
-              <h3>🚨 Yêu Cầu Hủy Nhiệm Vụ</h3>
-              
-              <div className="table-container">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>TNV Yêu Cầu</th>
-                      <th>Nhiệm Vụ Đang Cứu</th>
-                      <th style={{width: '30%'}}>Lý Do Hủy</th> {/* Cố định độ rộng cho lý do */}
-                      <th>Hành Động</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {requests.filter((r) => r.status === "cancel_pending").length === 0 ? (
-                      <tr><td colSpan="4" style={{textAlign: 'center', padding: '20px'}}>Không có yêu cầu nào</td></tr>
-                    ) : (
-                      requests.filter((r) => r.status === "cancel_pending").map((req) => (
-                        <tr key={req.id}>
-                          <td>
-                            <strong>{req.rescuerName}</strong>
-                            <br />
-                            <small>{req.rescuerPhone}</small>
-                          </td>
-                          <td>
-                            <strong>{req.name}</strong>
-                            <br/>
-                            <small>{req.address}</small>
-                          </td>
-                          <td>
-                            <span style={{ color: "#b91c1c", fontWeight: 500 }}>
-                              "{req.cancelReason}"
-                            </span>
-                          </td>
-                          <td>
-                            <button className="btn-small btn-danger" onClick={() => handleApproveCancel(req)}>
-                              Duyệt Hủy
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* 2. DUYỆT TÌNH NGUYỆN VIÊN */}
             <div className="section-block info-block">
               <h3>❤️ Duyệt Tình Nguyện Viên Mới</h3>
-              
-              <div className="table-container">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Họ Tên</th>
-                      <th>Số Điện Thoại</th>
-                      <th className="col-address">Địa Chỉ</th> {/* Dùng lại class col-address để cố định */}
-                      <th>Hành Động</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingVolunteers.length === 0 ? (
-                      <tr><td colSpan="4" style={{textAlign: 'center', padding: '20px'}}>Không có đăng ký mới</td></tr>
-                    ) : (
-                      pendingVolunteers.map((vol, idx) => (
-                        <tr key={idx}>
-                          <td><strong>{vol.name}</strong></td>
-                          <td>{vol.phone}</td>
-                          
-                          {/* Cột địa chỉ sẽ tự động xuống dòng đẹp mắt */}
-                          <td>{vol.address}</td>
-                          
-                          <td>
-                            <button className="btn-small btn-primary" onClick={() => handleApproveVolunteer(vol)}>
-                              Chấp thuận
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              {renderTable(
+                pendingVolunteers,
+                ["Họ Tên", "Số Điện Thoại", "Trạng Thái", "Hành Động"],
+                (vol, idx) => (
+                  <tr key={vol.id || idx}>
+                    <td><strong>{vol.fullName}</strong></td>
+                    <td>{vol.phone}</td>
+                    <td><span className="badge" style={{background: '#fff7ed', color: '#c2410c'}}>{vol.status}</span></td>
+                    <td>
+                      <button 
+                        className="btn-small btn-primary" 
+                        onClick={() => handleApproveVolunteer(vol)}
+                        disabled={isLoading}
+                      >
+                        {isLoading ? "..." : "Chấp thuận"}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              )}
             </div>
-
-            {/* 3. DANH SÁCH ĐƠN CỨU TRỢ (Gộp tất cả trạng thái vào 1 bảng lớn) */}
+            
             <div className="section-block">
-              <h3>📋 Tất Cả Đơn Cứu Trợ</h3>
-              
-              {/* Thêm div table-container để bao bọc */}
-              <div className="table-container">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Người Cần Cứu</th>
-                      <th className="col-address">Địa Chỉ</th> {/* Thêm class col-address vào đây */}
-                      <th>Loại</th>
-                      <th>Trạng Thái</th>
-                      <th style={{textAlign: 'center'}}>TNV Phụ Trách</th>
-                      <th>Hành Động</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {requests.filter((r) => r.status !== "cancel_pending").length === 0 ? (
-                      <tr><td colSpan="6" style={{textAlign: 'center', padding: '20px'}}>Không có dữ liệu</td></tr>
-                    ) : (
-                      requests
-                        .filter((r) => r.status !== "cancel_pending")
-                        .map((req) => (
-                          <tr key={req.id}>
-                            <td>
-                              <strong>{req.name}</strong>
-                              <br />
-                              <small>{req.phone}</small>
-                            </td>
-                            
-                            {/* Dữ liệu địa chỉ sẽ tuân theo width của header col-address */}
-                            <td>{req.address}</td>
-                            
-                            <td>
-                              <span className="badge badge-type">{req.type}</span>
-                            </td>
-                            
-                            <td style={{ textAlign: "center" }}>
-                              <span className={`badge status-${req.status}`}>
-                                {req.status === "pending" ? "Chờ duyệt"
-                                  : req.status === "approved" ? "Đang tìm TNV"
-                                  : req.status === "in_progress" ? "Đang cứu hộ"
-                                  : req.status === "canceled" ? "Hủy"
-                                  : "Hoàn thành"}
-                              </span>
-                            </td>
-                            
-                            <td style={{ textAlign: "center" }}>
-                              {req.rescuerName ? req.rescuerName : "—"}
-                            </td>
-                            
-                            <td>
-                              {req.status === "pending" && (
-                                <button className="btn-small btn-success" onClick={() => handleApproveRequest(req.id)}>
-                                  Duyệt Đơn
-                                </button>
-                              )}
-                              {req.status === "canceled" && <span style={{ color: "red", fontSize: '0.8rem' }}>Đã hủy</span>}
-                              {(req.status === "successfully_completed" || req.status === "completed") && (
-                                <span style={{ color: "green", fontWeight: 'bold', fontSize: '0.8rem' }}>✓ Hoàn thành</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+               <h3>📋 Tất Cả Đơn Cứu Trợ</h3>
+               <div style={{padding:'20px', textAlign:'center', color:'#666'}}>(Đang cập nhật...)</div>
             </div>
           </div>
         )}
 
-        {/* --- TAB 2: DANH SÁCH USER --- */}
+        {/* TAB 2: DANH SÁCH USER (ĐÃ FIX) */}
         {activeTab === "users" && (
           <div className="section-block">
-            <h3>👥 Danh sách người dùng hệ thống</h3>
+            <h3>👥 Danh sách toàn bộ User</h3>
             {renderTable(
               allUsers,
-              [
-                "Họ Tên",
-                "Số Điện Thoại",
-                "Vai Trò",
-                "Địa Chỉ",
-                "Ngày Tham Gia",
-              ],
+              ["Họ Tên", "SĐT", "Vai Trò", "Trạng Thái"],
               (u, idx) => (
-                <tr key={idx}>
-                  <td>
-                    <strong>{u.name}</strong>
-                  </td>
+                <tr key={u.id || idx}>
+                  <td><strong>{u.fullName}</strong></td>
                   <td>{u.phone}</td>
                   <td>
                     <span className={`badge role-${u.role}`}>
-                      {u.role === "citizen"
-                        ? "Người Dân"
-                        : u.role === "volunteer"
-                        ? "Tình Nguyện Viên"
-                        : u.role === "volunteer-pending"
-                        ? "TNV (Chờ duyệt)"
-                        : "Admin"}
+                        {u.role === 'citizen' ? 'Người Dân' : 
+                         u.role === 'volunteer' ? 'TNV' : 
+                         u.role === 'admin' ? 'Admin' : u.role}
                     </span>
                   </td>
-                  <td>{u.address || "N/A"}</td>
-                  <td>{u.joinedAt || "N/A"}</td>
+                  <td>{u.status}</td>
                 </tr>
               )
             )}
           </div>
         )}
+
       </div>
     </div>
   );
