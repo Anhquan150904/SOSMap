@@ -16,7 +16,7 @@ using StackExchange.Redis;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Database
-var conn = @"Server=HOUTARO\SQLEXPRESS;Database=SOSMap;Trusted_Connection=True;TrustServerCertificate=True;Encrypt=False;";
+var conn = @"Server=VUANHQUAN\SQLEXPRESS01;Database=SOSMap;Trusted_Connection=True;TrustServerCertificate=True;Encrypt=False;";
 builder.Services.AddDbContext<SosDbContext>(opts =>
     opts.UseSqlServer(conn, x => x.UseNetTopologySuite()));
 

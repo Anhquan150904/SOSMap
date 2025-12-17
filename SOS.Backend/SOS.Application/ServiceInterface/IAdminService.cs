@@ -10,5 +10,7 @@ namespace SOS.Service.Interfaces
     {
         Task CancelTaskAsync(Guid taskId, Guid volunteerId);
         Task AcceptRequestVolunteer(Guid userId);
+
+        Task AcceptSOSReport(Guid reportId);
     }
 }

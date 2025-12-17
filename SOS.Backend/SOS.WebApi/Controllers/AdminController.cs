@@ -31,5 +31,13 @@ namespace Sos.WebApi.Controllers
             await _service.AcceptRequestVolunteer(userId);
             return Ok(new { canceled = true });
         }
+
+        // chấp nhận yêu cầu cứu hộ
+        [HttpPost("report/{reportId:guid}/accept-to-sos-report")]
+        public async Task<IActionResult> AcceptSOSReport(Guid reportId)
+        {
+            await _service.AcceptSOSReport(reportId);
+            return Ok(new { canceled = true });
+        }
     }
 }
