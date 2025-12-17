@@ -24,12 +24,13 @@ namespace Sos.Application.Services
 
         public Task NotifyAdminsTaskAccepted(object payload)
             => _hubContext.Clients.Group("admin").SendAsync("TaskAccepted", payload);
-
-        // Các method khác tạm để trống
-        public Task NotifyTaskCompleted(object payload) => Task.CompletedTask;
-
-        public Task NotifyVolunteersTaskCanceled(object payload) => Task.CompletedTask;
-        public Task NotifyAdminsTaskCompleted(object payload) => Task.CompletedTask;
+            
+        public Task NotifyAdminsTaskCompleted(object payload)
+        {
+            return _hubContext.Clients
+                .Group("admin")
+                .SendAsync("NotifyAdminsTaskCompleted", payload);
+        }
 
         /// <summary>
         /// Đội cứu hộ gửi yêu cầu hủy task → báo ADMIN
