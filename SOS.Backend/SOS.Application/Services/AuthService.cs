@@ -3,6 +3,7 @@ using Sos.Application.DTOs.OtpDto;
 using Sos.Domain.Entities;
 using Sos.Domain.Interfaces;
 using Sos.Service.Interfaces;
+using SOS.Application.DTOs.OtpDto;
 
 public class AuthService: IAuthService
 {
@@ -15,7 +16,7 @@ public class AuthService: IAuthService
         _userRepo = userRepo;
     }
 
-    public async Task<string> SendOtpAsync(string phone)
+    public async Task<OtpGenerateResult> SendOtpAsync(string phone)
     {
         if (string.IsNullOrWhiteSpace(phone))
             throw new ArgumentException("Phone required");
@@ -25,6 +26,7 @@ public class AuthService: IAuthService
 
     public async Task<AuthResultDto> VerifyOtpAsync(VerifyOtpRequest req)
     {
+        Console.WriteLine($"Verifying OTP for phone: {req.Phone}, code: {req.Code}");
         if (!await _otp.ValidateOtpAsync(req.Phone, req.Code))
             throw new InvalidOperationException("Invalid or expired OTP");
 
@@ -44,7 +46,11 @@ public class AuthService: IAuthService
         }
         else
         {
-            user.FullName = req.FullName ?? user.FullName;
+            // Nếu chuỗi KHÔNG (null hoặc rỗng)
+            if (!string.IsNullOrEmpty(req.FullName))
+            {
+                user.FullName = req.FullName;
+            }
             user.UpdatedAt = DateTime.UtcNow;
             await _userRepo.UpdateAsync(user);
         }
@@ -80,7 +86,11 @@ public class AuthService: IAuthService
                 user.Status = "Pending";
             }
 
-            user.FullName = req.FullName ?? user.FullName;
+            // Nếu chuỗi KHÔNG (null hoặc rỗng)
+            if (!string.IsNullOrEmpty(req.FullName))
+            {
+                user.FullName = req.FullName;
+            }
             user.UpdatedAt = DateTime.UtcNow;
             await _userRepo.UpdateAsync(user);
         }
@@ -89,6 +99,7 @@ public class AuthService: IAuthService
         {
             UserId = user.Id,
             Phone = user.Phone,
+            FullName = user.FullName,
             Role = user.Role,
             Status = user.Status,
             Message = "Bạn đã đăng ký thành công trở thành nhóm cứu hộ. Vui lòng đợi quản trị viên kiểm tra và duyệt thông tin!"

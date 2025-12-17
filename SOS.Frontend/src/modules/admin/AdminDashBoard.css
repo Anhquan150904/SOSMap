@@ -1,5 +1,6 @@
 /* src/modules/admin/AdminDashboard.css */
 
+/* --- TỔNG QUAN --- */
 .admin-dashboard {
     min-height: 100vh;
     background-color: #f8fafc;
@@ -25,109 +26,143 @@
     cursor: pointer;
     font-weight: 600;
   }
+
+/* --- CONTAINER CHÍNH --- */
+.dashboard-container {
+  max-width: 1200px;
+  margin: 30px auto;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+/* --- CÁC KHỐI SECTION (BLOCK) --- */
+.section-block {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  border: 1px solid #e2e8f0;
+  position: relative;
+  overflow: hidden;
+}
+
+.section-block::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+}
+
+.danger-block::before { background-color: #ef4444; }
+.info-block::before { background-color: #8b5cf6; }
+
+.section-block h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 1.1rem;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* --- BẢNG DỮ LIỆU (TABLE) --- */
+/* 1. Bao bọc bảng để có thanh cuộn ngang khi cần */
+.table-container {
+  width: 100%;
+  overflow-x: auto; /* Cho phép cuộn ngang nếu bảng quá rộng */
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: white;
+}
+
+/* 2. Thiết lập bảng cứng */
+.admin-table {
+  width: 100%;
+  min-width: 1000px; /* Đảm bảo bảng luôn đủ rộng, không bị co dúm */
+  border-collapse: collapse; /* Gộp đường viền (quan trọng để ra dạng bảng cứng) */
+  font-size: 0.9rem;
+}
+
+/* 3. Kẻ khung cho Tiêu đề và Ô dữ liệu */
+.admin-table th, 
+.admin-table td {
+  padding: 12px 15px;
+  border: 1px solid #cbd5e1; /* Đường kẻ khung màu xám */
+  text-align: center;
+  vertical-align: middle;
+  color: #334155;
+}
+
+/* 4. Style riêng cho Header */
+.admin-table th {
+  background-color: #f1f5f9; /* Màu nền tiêu đề */
+  color: #1e293b;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  white-space: nowrap; /* Không cho tiêu đề xuống dòng */
+}
+
+/* 5. Hiệu ứng dòng chẵn lẻ và hover */
+.admin-table tbody tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+.admin-table tbody tr:hover {
+  background-color: #f0f9ff; /* Màu xanh nhạt khi di chuột vào */
+}
+
+/* 6. CỐ ĐỊNH CỘT ĐỊA CHỈ (Quan trọng) */
+.col-address {
+  width: 250px;      /* Chiều rộng cố định */
+  max-width: 300px;
+  word-wrap: break-word; /* Tự xuống dòng nếu chữ quá dài */
+  white-space: normal;
+}
+
+/* --- BADGES --- */
+.badge {
+  display: inline-flex; align-items: center; padding: 4px 10px;
+  border-radius: 99px; font-size: 0.75rem; font-weight: 700; white-space: nowrap;
+}
+.badge-type { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+.status-pending { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
+.status-approved { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
+.status-in_progress { background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+.status-completed { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+.status-cancel_pending { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
+.status-canceled { background: #fce7f3; color: #be185d; border: 1px solid #fbcfe8; }
+
+.role-admin { background: #1e293b; color: #fff; }
+.role-volunteer { background: #dcfce7; color: #15803d; }
+.role-volunteer-pending { background: #ffedd5; color: #9a3412; }
+.role-citizen { background: #fee2e2; color: #991b1b; }
+
+/* --- BUTTONS NHỎ --- */
+.btn-small {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: white;
+  transition: opacity 0.2s;
   
-  /* CONTAINER CHÍNH */
-  .dashboard-container {
-    max-width: 1200px;
-    margin: 30px auto;
-    padding: 0 20px;
-    display: flex;
-    flex-direction: column; /* Xếp chồng các hàng lên nhau */
-    gap: 30px;
-  }
-  
-  /* TỪNG HÀNG (ROW) */
-  .dashboard-row {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    border-left: 6px solid #ccc; /* Viền màu bên trái để phân biệt */
-  }
-  
-  /* Màu sắc viền cho từng loại hàng */
-  .row-pending { border-left-color: #f97316; }   /* Cam */
-  .row-approved { border-left-color: #3b82f6; }  /* Xanh dương */
-  .row-completed { border-left-color: #22c55e; } /* Xanh lá */
-  /* Thêm màu cho hàng Đang Hỗ Trợ */
-  .row-inprogress { border-left-color: #9333ea; background-color: #f3e8ff; }
-  
-  .row-header h3 {
-    margin-top: 0;
-    margin-bottom: 20px;
-    font-size: 1.2rem;
-    color: #334155;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 10px;
-  }
-  
-  /* GRID CONTENT: Để các thẻ nằm ngang trong hàng */
-  .row-content {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Tự động chia cột */
-    gap: 20px;
-  }
-  
-  .empty-text {
-      color: #94a3b8;
-      font-style: italic;
-  }
-  
-  /* THẺ REQUEST (CARD) */
-  .request-card {
-    background: #f1f5f9;
-    padding: 15px;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    transition: transform 0.2s;
-  }
-  
-  .request-card:hover {
-    transform: translateY(-3px);
-    background: #fff;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    border-color: #cbd5e1;
-  }
-  
-  .card-info h4 { margin: 0 0 5px 0; color: #0f172a; font-size: 1.1rem;}
-  .card-info p { margin: 4px 0; color: #64748b; font-size: 0.9rem; }
-  .req-type { font-weight: bold; color: #dc2626 !important; margin-top: 8px !important;}
-  
-  /* BUTTONS */
-  .btn-action {
-    width: 100%;
-    padding: 10px;
-    margin-top: 15px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: bold;
-    color: white;
-    transition: opacity 0.2s;
-  }
-  
-  .btn-action:hover { opacity: 0.9; }
-  
-  .btn-approve { background-color: #2563eb; }
-  .btn-complete { background-color: #16a34a; }
-  
-  /* Đã hoàn thành style */
-  .completed-card { 
-      background-color: #f8fafc; 
-      opacity: 0.8; 
-      border-color: transparent;
-  }
-  .badge-done {
-    display: inline-block;
-    background: #dcfce7;
-    color: #166534;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    margin-top: 5px;
-  }
-  
+  /* --- QUAN TRỌNG: Cấu hình Flexbox --- */
+  display: inline-flex;    /* Hoặc flex */
+  align-items: center;     /* Căn giữa theo chiều dọc (đã có) */
+  justify-content: center; /* <--- THÊM DÒNG NÀY: Căn giữa theo chiều ngang */
+  gap: 5px;
+}
+.btn-small:hover { opacity: 0.9; }
+.btn-success { background: #10b981; }
+.btn-primary { background: #8b5cf6; }
+.btn-danger { background: #ef4444; }
+
+.empty-text { text-align: center; padding: 30px; color: #94a3b8; font-style: italic; }
+strong { color: #0f172a; }
+small { display: block; margin-top: 4px; color: #64748b; font-size: 0.8rem; }
