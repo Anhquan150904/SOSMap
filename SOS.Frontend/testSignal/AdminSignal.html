@@ -2,11 +2,11 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <title>SOS SignalR – ADMIN TEST</title>
+  <title>SOS SignalR – ADMIN TEST (ALL)</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
 </head>
 <body>
-  <h2>ADMIN – SignalR Test</h2>
+  <h2>ADMIN – SignalR Test (ALL EVENTS)</h2>
 
   <button onclick="loginAdmin()">1️⃣ Login Admin</button>
   <button onclick="connect()">2️⃣ Connect SignalR</button>
@@ -14,57 +14,82 @@
 
   <pre id="log"></pre>
 
-  <script>
-    const log = msg =>
-      document.getElementById("log").textContent += msg + "\n";
+<script>
+  function log(msg) {
+    document.getElementById("log").textContent += msg + "\n";
+  }
 
-    let connection;
-    let currentUser;
+  let connection;
+  let currentUser = null;
 
-    // ✅ STEP 1
-    function loginAdmin() {
-      currentUser = {
-        userId: "11111111-1111-1111-1111-111111111111",
-        role: "admin",
-        status: "active"
-      };
-      log("✅ Login admin thành công");
+  function loginAdmin() {
+    currentUser = {
+      userId: "11111111-1111-1111-1111-111111111111",
+      role: "admin",
+      status: "active"
+    };
+    log("✅ Login ADMIN thành công");
+  }
+
+  async function connect() {
+    connection = new signalR.HubConnectionBuilder()
+      .withUrl("http://localhost:5075/testhub")
+      .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Information)
+      .build();
+
+    connection.on("ServerMessage", msg => {
+      log("📩 ServerMessage: " + msg);
+    });
+
+    connection.on("ReportCreated", payload => {
+      log("📢 [ReportCreated]");
+      log(JSON.stringify(payload, null, 2));
+    });
+
+    connection.on("TaskAccepted", payload => {
+      log("🟢 [TaskAccepted]");
+      log(JSON.stringify(payload, null, 2));
+    });
+
+    connection.on("NotifyAdminsTaskCompleted", payload => {
+      log("✅ [NotifyAdminsTaskCompleted]");
+      log(JSON.stringify(payload, null, 2));
+    });
+
+    connection.on("VolunteerRequestTaskCanceled", payload => {
+      log("🚨 [VolunteerRequestTaskCanceled]");
+      log(JSON.stringify(payload, null, 2));
+    });
+
+    connection.on("TaskCanceledApproved", payload => {
+      log("❌ [TaskCanceledApproved]");
+      log(JSON.stringify(payload, null, 2));
+    });
+
+    await connection.start();
+    log("✅ SignalR connected");
+  }
+
+  async function join() {
+    if (!currentUser) {
+      alert("Chưa login admin");
+      return;
+    }
+    if (!connection) {
+      alert("Chưa connect SignalR");
+      return;
     }
 
+    await connection.invoke(
+      "JoinByRoleAndStatus",
+      currentUser.role,
+      currentUser.status,
+      currentUser.userId
+    );
+    log("✅ Joined ADMIN group");
+  }
+</script>
 
-    // ✅ STEP 2
-    async function connect() {
-      connection = new signalR.HubConnectionBuilder()
-        .withUrl("http://localhost:5075/testhub", {
-          withCredentials: true
-        })
-        .withAutomaticReconnect()
-        .configureLogging(signalR.LogLevel.Information)
-        .build();
-
-      connection.on("ServerMessage", msg => {
-        log("📩 ServerMessage: " + msg);
-      });
-
-      connection.on("VolunteerRequestTaskCanceled", payload => {
-        log("🚨 Volunteer yêu cầu hủy task:");
-        log(JSON.stringify(payload, null, 2));
-      });
-
-      connection.on("ReportCreated", payload => {
-        log("📢 Báo cáo mới:");
-        log(JSON.stringify(payload, null, 2));
-      });
-
-      await connection.start();
-      log("✅ SignalR connected");
-    }
-
-    // ✅ STEP 3
-    async function join() {
-      await connection.invoke("JoinByRoleAndStatus", currentUser.role, currentUser.status,currentUser.userId);
-      log("✅ Joined ADMIN group");
-    }
-  </script>
 </body>
 </html>

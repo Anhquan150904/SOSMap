@@ -107,7 +107,7 @@ namespace Sos.Application.Services
             report.UpdatedAt = DateTime.UtcNow;
             await _reportRepo.UpdateAsync(report);
 
-            await _notification.NotifyAdminsTaskAccepted(new { reportId, volunteerId });
+            await _notification.NotifyAdminsTaskAccepted(new { reportId, volunteerId, task.Id });
 
             return task.Id;
         }
@@ -157,6 +157,7 @@ namespace Sos.Application.Services
             await _notification.NotifyAdminsTaskCompleted(new
             {
                 taskId,
+                volunteerId,
                 reportId = task.ReportId
             });
         }
