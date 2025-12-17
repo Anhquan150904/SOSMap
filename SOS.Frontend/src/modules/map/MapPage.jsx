@@ -598,7 +598,7 @@ const MapPage = () => {
             }}
           >
             <span>📍</span>{" "}
-            {isVolunteerFunc ? "Cập nhật vị trí" : "Sửa địa chỉ"}
+            {isVolunteerFunc ? "Thêm vị trí" : "Thêm vị trí"}
           </button>
         </div>
       )}
