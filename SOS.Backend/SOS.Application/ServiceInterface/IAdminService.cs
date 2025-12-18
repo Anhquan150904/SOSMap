@@ -9,6 +9,7 @@ namespace SOS.Service.Interfaces
     public interface IAdminService
     {
         Task CancelTaskAsync(Guid taskId, Guid volunteerId);
+        Task NotCancelTaskAsync(Guid taskId, Guid volunteerId);
         Task AcceptRequestVolunteer(Guid userId);
 
         Task AcceptSOSReport(Guid reportId);
