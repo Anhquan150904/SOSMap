@@ -54,5 +54,21 @@ namespace Sos.Application.Services
                 .SendAsync("TaskCanceledApproved", payload);
         }
 
+        public Task NotifyReportStatusChanged(Guid userId, object payload)
+        {
+            var groupName = $"user_{userId}";
+            return _hubContext.Clients
+                .Group(groupName)
+                .SendAsync("ReportStatusChanged", payload);
+        }
+
+        public Task NotifyReportCancel(Guid userId, object payload)
+        {
+            var groupName = $"user_{userId}";
+            return _hubContext.Clients
+                .Group(groupName)
+                .SendAsync("ReportCanceled", payload);
+        }
+
     }
 }

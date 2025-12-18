@@ -2,6 +2,7 @@
 using NetTopologySuite.Geometries;
 using Sos.Domain.Interfaces;
 using SOS.Service.Interfaces;
+using System;
 
 namespace Sos.Application.Services
 {
@@ -48,6 +49,26 @@ namespace Sos.Application.Services
 
             };
             await _notification.NotifyTaskCanceled(volunteerId, payload);
+            await _notification.NotifyReportCancel(report.UserId, new
+            {
+                Message = "Báo cáo của bạn đã được hủy bỏ do đội cứu hộ không thể thực hiện nhiệm vụ."
+            });
+        }
+
+        public async Task NotCancelTaskAsync(Guid taskId, Guid volunteerId)
+        {
+            var task = await _taskRepo.GetByIdAsync(taskId);
+            if (task == null) throw new KeyNotFoundException("Task not found");
+            if (task.VolunteerId != volunteerId) throw new UnauthorizedAccessException("Not your task");
+
+            task.Status = "in_progress";
+            await _taskRepo.UpdateAsync(task);
+            var payload = new
+            {
+                Message = $"Admin không chấp nhận yêu cầu hủy Task {taskId} của bạn",
+
+            };
+            await _notification.NotifyTaskCanceled(volunteerId, payload);
         }
 
         public async Task AcceptRequestVolunteer(Guid userId)
@@ -63,6 +84,11 @@ namespace Sos.Application.Services
             var report = await _reportRepository.GetByIdAsync(reportId);
             report.Status = "accepted";
             await _reportRepository.UpdateAsync(report);
+
+            await _notification.NotifyReportStatusChanged(report.UserId, new
+            {
+                Message = "Báo cáo của bạn đã được chấp nhận và đang trong quá trình xử lý."
+            });
         }
     }
 

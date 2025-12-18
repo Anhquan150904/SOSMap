@@ -74,6 +74,16 @@ namespace Sos.Infrastructure.Hubs
                     $"volunteer_team_{userId}"
                 );
             }
+            if (role == "citizen" && userId.HasValue)
+            {
+                if (status == "active")
+                    await Groups.AddToGroupAsync(Context.ConnectionId, "citizen_active");
+
+                await Groups.AddToGroupAsync(
+                    Context.ConnectionId,
+                    $"user_{userId}"
+                );
+            }
         }
 
 
