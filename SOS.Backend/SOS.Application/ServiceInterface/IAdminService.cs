@@ -13,5 +13,6 @@ namespace SOS.Service.Interfaces
         Task AcceptRequestVolunteer(Guid userId);
 
         Task AcceptSOSReport(Guid reportId);
+        Task RejectSOSReport(Guid reportId);
     }
 }
