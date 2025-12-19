@@ -60,5 +60,14 @@ namespace Sos.Infrastructure.Repositories
                 .ToListAsync();
         }
 
+        public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+        {
+            var report = await _db.SOSReports.FirstOrDefaultAsync(r => r.Id == id, ct);
+            if (report != null)
+            {
+                _db.SOSReports.Remove(report);
+                await _db.SaveChangesAsync(ct);
+            }
+        }
     }
 }
