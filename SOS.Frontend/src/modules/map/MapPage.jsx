@@ -410,39 +410,104 @@ const MapPage = () => {
     } catch (error) { console.error("Lỗi:", error); alert("Gửi yêu cầu hủy thất bại."); } finally { setIsLoading(false); }
   };
 
-  const handleAddressInputChange = (e) => {
-    const value = e.target.value;
-    setNewAddressInput(value);
-    if (!value.trim()) { setSuggestions([]); setShowSuggestions(false); return; }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&addressdetails=1&limit=5&countrycodes=vn`);
-        const data = await res.json();
-        setSuggestions(data); setShowSuggestions(true);
-      } catch (error) {}
-    }, 200);
-  };
+const handleAddressInputChange = (e) => {
+  setNewAddressInput(e.target.value);
+};
+const handleSearchAddress = async () => {
+  const value = newAddressInput.trim();
+  if (!value || value.length < 5) return;
+
+  try {
+    setIsLoading(true);
+
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        value
+      )}&addressdetails=1&limit=5&countrycodes=vn`
+    );
+
+    const data = await res.json();
+    setSuggestions(data);
+    setShowSuggestions(true);
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setIsLoading(false);
+  }
+};
+const handleKeyDown = (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    handleSearchAddress();
+  }
+};
+
   const handleSelectSuggestion = (item) => { setNewAddressInput(item.display_name); setShowSuggestions(false); };
   
-  const handleUpdateAddress = async () => {
-    if (!newAddressInput.trim()) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newAddressInput)}&limit=1`);
-      const data = await res.json();
-      if (data && data.length > 0) {
-        const newCoords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-        const updatedUser = { ...currentUser, address: data[0].display_name, location: newCoords };
-        setCurrentUser(updatedUser);
-        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
-        setManualPosition(newCoords);
-        localStorage.setItem("MANUAL_POSITION", JSON.stringify(newCoords));
-        alert("Đã cập nhật vị trí thành công!");
-        setShowUpdateAddressModal(false);
-      } else { alert("Không tìm thấy vị trí"); }
-    } catch (e) {} finally { setIsLoading(false); }
-  };
+const handleUpdateAddress = async () => {
+  if (!newAddressInput.trim()) return;
+
+  setIsLoading(true);
+
+  try {
+    // 1️⃣ Gọi Nominatim để lấy tọa độ
+    const geoRes = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newAddressInput)}&limit=1`
+    );
+    const geoData = await geoRes.json();
+
+    if (!geoData || geoData.length === 0) {
+      alert("Không tìm thấy vị trí");
+      return;
+    }
+
+    const newCoords = [
+      parseFloat(geoData[0].lat),
+      parseFloat(geoData[0].lon),
+    ];
+
+    const displayAddress = geoData[0].display_name;
+
+    // 2️⃣ GỌI API BACKEND để update địa chỉ
+    const apiRes = await fetch(
+      `http://localhost:5075/api/user/${currentUser.id}/address`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(displayAddress), // ⚠️ string thuần
+      }
+    );
+
+    if (!apiRes.ok) {
+      throw new Error("Update address failed");
+    }
+
+    // 3️⃣ Update state + localStorage
+    const updatedUser = {
+      ...currentUser,
+      address: displayAddress,
+      location: newCoords,
+    };
+
+    setCurrentUser(updatedUser);
+    localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+
+    setManualPosition(newCoords);
+    localStorage.setItem("MANUAL_POSITION", JSON.stringify(newCoords));
+
+    alert("Đã cập nhật vị trí thành công!");
+    setShowUpdateAddressModal(false);
+
+  } catch (error) {
+    console.error(error);
+    alert("Có lỗi khi cập nhật địa chỉ");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   // --- [MỚI] TẠO YÊU CẦU CỨU TRỢ & HIỂN THỊ NGAY ---
   const handleCreateRequest = async () => { 
@@ -634,7 +699,22 @@ const MapPage = () => {
 
       {showRequestForm && <Modal title="Gửi yêu cầu khẩn cấp" onClose={() => setShowRequestForm(false)}><div className="form-group"><label>Bạn cần giúp gì?</label><select value={reqType} onChange={(e) => setReqType(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}><option>Cần lương thực</option><option>Cần thuốc men / Y tế</option><option>Cần sơ tán khẩn cấp</option><option>Cần áo phao / Thuyền</option><option>Khác</option></select></div><div className="form-group"><label>Mô tả chi tiết</label><textarea rows="4" placeholder="Mô tả tình trạng..." value={reqDesc} onChange={(e) => setReqDesc(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}/></div><button className="btn-primary" style={{ backgroundColor: "#dc2626" }} onClick={handleCreateRequest}>Gửi Yêu Cầu</button></Modal>}
       {showCancelModal && <Modal title="Lý do hủy nhiệm vụ" onClose={() => setShowCancelModal(false)}><div className="form-group"><label>Tại sao bạn muốn hủy cứu trợ này?</label><textarea rows="3" placeholder="Nhập lý do..." value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}/></div><button onClick={handleConfirmCancel} className="btn-primary" style={{ backgroundColor: "#dc2626", marginTop: "10px" }}>Xác nhận Hủy</button></Modal>}
-      {showUpdateAddressModal && (<Modal title="Cập nhật Vị trí Hiện tại" onClose={() => setShowUpdateAddressModal(false)}><p style={{ color: "#dc2626", marginBottom: "10px" }}>⚠️ <strong>Lưu ý:</strong> Nhập địa chỉ chi tiết để định vị chính xác!</p><div className="form-group" ref={wrapperRef}><label>Địa chỉ hiện tại của bạn:</label><div className="address-input-container"><input type="text" placeholder="Nhập địa chỉ..." value={newAddressInput} onChange={handleAddressInputChange} onFocus={() => newAddressInput && setShowSuggestions(true)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }} autoComplete="off"/>{showSuggestions && suggestions.length > 0 && (<div className="suggestions-dropdown">{suggestions.map((item, index) => (<div key={index} className="suggestion-item" onClick={() => handleSelectSuggestion(item)}><span style={{ fontSize: "1.2rem" }}>📍</span><span className="suggestion-text">{item.display_name}</span></div>))}</div>)}</div></div><button onClick={handleUpdateAddress} className="btn-primary" disabled={isLoading} style={{ backgroundColor: "#007bff", marginTop: "10px" }}>{isLoading ? "Đang định vị..." : "Cập nhật Vị trí"}</button></Modal>)}
+      {showUpdateAddressModal && (<Modal title="Cập nhật Vị trí Hiện tại" onClose={() => setShowUpdateAddressModal(false)}><p style={{ color: "#dc2626", marginBottom: "10px" }}>⚠️ <strong>Lưu ý:</strong> Nhập địa chỉ chi tiết để định vị chính xác!</p><div className="form-group" ref={wrapperRef}><label>Địa chỉ hiện tại của bạn:</label><div className="address-input-container"><input
+        type="text"
+        placeholder="Nhập địa chỉ..."
+        value={newAddressInput}
+        onChange={handleAddressInputChange}
+        onKeyDown={handleKeyDown}
+        onFocus={() => newAddressInput && setShowSuggestions(true)}
+        style={{
+          width: "100%",
+          padding: "10px",
+          borderRadius: "5px",
+          border: "1px solid #ddd",
+        }}
+        autoComplete="off"
+      />
+{showSuggestions && suggestions.length > 0 && (<div className="suggestions-dropdown">{suggestions.map((item, index) => (<div key={index} className="suggestion-item" onClick={() => handleSelectSuggestion(item)}><span style={{ fontSize: "1.2rem" }}>📍</span><span className="suggestion-text">{item.display_name}</span></div>))}</div>)}</div></div><button onClick={handleUpdateAddress} className="btn-primary" disabled={isLoading} style={{ backgroundColor: "#007bff", marginTop: "10px" }}>{isLoading ? "Đang định vị..." : "Cập nhật Vị trí"}</button></Modal>)}
     </div>
   );
 };
