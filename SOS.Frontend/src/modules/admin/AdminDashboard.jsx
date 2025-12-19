@@ -16,7 +16,7 @@ const AdminDashboard = () => {
   const [reports, setReports] = useState([]); 
   const [isLoading, setIsLoading] = useState(false);
   
-  // [MỚI] State lưu danh sách yêu cầu hủy task
+  // State lưu danh sách yêu cầu hủy task
   const [cancelRequests, setCancelRequests] = useState([]); 
 
   useEffect(() => {
@@ -28,7 +28,7 @@ const AdminDashboard = () => {
     const config = { headers: { Authorization: `Bearer ${token}` } };
 
     try {
-      // 1. Lấy danh sách User (Giữ nguyên)
+      // 1. Lấy danh sách User
       try {
         const resPending = await axios.get(`${API_BASE}/user/by-status/Pending`, config);
         const listPending = resPending.data || [];
@@ -64,10 +64,8 @@ const AdminDashboard = () => {
         console.error("Lỗi tải Reports:", errReport);
       }
 
-      // 3. [CHIẾN THUẬT MỚI] LẤY TASK CỦA TỪNG REPORT ĐỂ KIỂM TRA HỦY
-      // Vì Report không chứa info Task, ta phải gọi API lấy Task cho từng Report đang chạy
+      // 3. LẤY TASK CỦA TỪNG REPORT ĐỂ KIỂM TRA HỦY
       try {
-        // Chỉ cần check các đơn đang thực hiện (Accepted, InProcess)
         const activeReports = allReports.filter(r => 
             r.status === 'Accepted' || 
             r.status === 'InProcess' || 
@@ -75,38 +73,27 @@ const AdminDashboard = () => {
             r.status === 'inprocess'
         );
 
-        // Gọi API lấy task song song cho tất cả các đơn này
         const taskPromises = activeReports.map(async (report) => {
             try {
-                // API: /api/reports/tasks/gettask/{reportId}
                 const res = await axios.get(`${API_BASE}/reports/tasks/gettask/${report.id}`, config);
-                const task = res.data; // Task trả về từ Backend
-                
+                const task = res.data;
                 if (task) {
-                    // Gắn thêm thông tin Report vào object Task để hiển thị
-                    return { 
-                        ...task, 
-                        reportId: report.id, 
-                        reportName: report.name 
-                    };
+                    return { ...task, reportId: report.id, reportName: report.name };
                 }
                 return null;
             } catch (e) {
-                // Nếu report chưa có task hoặc lỗi thì bỏ qua
                 return null;
             }
         });
 
         const tasks = await Promise.all(taskPromises);
 
-        // Lọc ra các Task có status là 'pending-to-canceled'
         const requests = tasks.filter(t => {
             if (!t) return false;
             const status = t.status ? String(t.status).toLowerCase() : "";
             return status === 'pending-to-canceled' || status === 'pendingtocanceled';
         });
 
-        console.log("⚠️ Đã tìm thấy Task hủy:", requests);
         setCancelRequests(requests);
 
       } catch (errTask) {
@@ -118,6 +105,7 @@ const AdminDashboard = () => {
     }
   };
 
+  // --- LOGIC USER ---
   const handleApproveVolunteer = async (user) => {
     if (!window.confirm(`Duyệt thành viên ${user.fullName} làm Tình Nguyện Viên?`)) return;
     setIsLoading(true);
@@ -133,6 +121,9 @@ const AdminDashboard = () => {
     } finally { setIsLoading(false); }
   };
 
+  // --- LOGIC REPORT (ĐƠN CỨU TRỢ) ---
+  
+  // 1. Duyệt đơn
   const handleApproveReport = async (report) => {
     if (!window.confirm(`Duyệt đơn cứu trợ của: ${report.name}?`)) return;
     setIsLoading(true);
@@ -152,35 +143,70 @@ const AdminDashboard = () => {
     }
   };
 
-  // --- [UPDATE] XỬ LÝ XÁC NHẬN HỦY TASK ---
-  const handleConfirmCancelTask = async (task) => {
-    // Lưu ý: Task lấy từ API gettask đôi khi field VolunteerId viết hoa/thường khác nhau
-    const volId = task.volunteerId || task.VolunteerId;
-
-    if (!task.id || !volId) {
-      alert(`❌ Lỗi dữ liệu: Thiếu thông tin.\nTaskID: ${task.id}\nVolID: ${volId}`);
-      return;
+  // 2. [MỚI] Từ chối đơn
+  const handleRejectReport = async (report) => {
+    if (!window.confirm(`❌ Bạn chắc chắn muốn TỪ CHỐI đơn của: ${report.name}?`)) return;
+    setIsLoading(true);
+    try {
+      // API: POST /api/admin/report/{reportId}/reject-to-sos-report
+      await axios.post(
+        `${API_BASE}/admin/report/${report.id}/reject-to-sos-report`, 
+        {}, 
+        { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } }
+      );
+      alert("🚫 Đã từ chối đơn cứu trợ!");
+      fetchData(); 
+    } catch (error) {
+      console.error("Lỗi từ chối đơn:", error);
+      alert("❌ Lỗi khi từ chối đơn.");
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    if (!window.confirm(`Xác nhận hủy Task ID: ${task.id} \ncủa Volunteer: ${volId}?`)) return;
+  // --- LOGIC TASK (NHIỆM VỤ) ---
+
+  // 1. Đồng ý cho hủy
+  const handleConfirmCancelTask = async (task) => {
+    const volId = task.volunteerId || task.VolunteerId;
+    if (!task.id || !volId) return alert("Thiếu ID Task hoặc Volunteer");
+
+    if (!window.confirm(`Xác nhận cho phép HỦY Task ID: ${task.id}?`)) return;
 
     setIsLoading(true);
     try {
       const url = `${API_BASE}/admin/tasks/${task.id}/cancel?volunteerId=${volId}`;
-      console.log("🚀 Calling API:", url); 
+      await axios.post(url, {}, { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } });
 
-      await axios.post(
-        url,
-        {}, 
-        { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } }
-      );
-
-      alert("✅ Đã chấp nhận hủy Task thành công!");
+      alert("✅ Đã chấp nhận hủy Task!");
       fetchData(); 
     } catch (err) {
-      console.error("Lỗi hủy task:", err);
-      const msg = err.response?.data?.message || err.message;
-      alert(`❌ Lỗi: ${msg}`);
+      alert(`❌ Lỗi: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // 2. [MỚI] Không cho phép hủy (Bắt buộc tiếp tục)
+  const handleRejectCancelTask = async (task) => {
+    const volId = task.volunteerId || task.VolunteerId;
+    if (!task.id) return alert("Thiếu ID Task");
+
+    if (!window.confirm(`🚫 Không chấp nhận lý do hủy của Volunteer?\nTask sẽ tiếp tục trạng thái cũ.`)) return;
+
+    setIsLoading(true);
+    try {
+      // API: POST /api/admin/tasks/{taskId}/no-cancel
+      // Swagger không ghi rõ có cần param volunteerId không, nhưng để an toàn mình cứ truyền vào
+      const url = `${API_BASE}/admin/tasks/${task.id}/no-cancel?volunteerId=${volId}`;
+      console.log("Calling:", url);
+
+      await axios.post(url, {}, { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } });
+
+      alert("🚫 Đã từ chối yêu cầu hủy. Task tiếp tục!");
+      fetchData(); 
+    } catch (err) {
+      alert(`❌ Lỗi: ${err.response?.data?.message || err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -245,7 +271,7 @@ const AdminDashboard = () => {
               )}
             </div>
 
-            {/* 2. DUYỆT YÊU CẦU HỦY TASK (Đã dùng API gettask riêng) */}
+            {/* 2. DUYỆT YÊU CẦU HỦY TASK */}
             <div className="section-block" style={{ borderLeft: '5px solid #ef4444' }}>
                <h3>⚠️ Yêu cầu hủy nhiệm vụ (Volunteer)</h3>
                {renderTable(
@@ -269,14 +295,27 @@ const AdminDashboard = () => {
                        {task.updatedAt ? new Date(task.updatedAt).toLocaleString('vi-VN') : '-'}
                      </td>
                      <td>
-                       <button 
-                         className="btn-small" 
-                         onClick={() => handleConfirmCancelTask(task)}
-                         disabled={isLoading}
-                         style={{background: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer'}}
-                       >
-                         {isLoading ? "..." : "Đồng ý Hủy"}
-                       </button>
+                       <div style={{display: 'flex', gap: '5px'}}>
+                           {/* Nút Đồng ý hủy */}
+                           <button 
+                             className="btn-small" 
+                             onClick={() => handleConfirmCancelTask(task)}
+                             disabled={isLoading}
+                             style={{background: '#ef4444', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer'}}
+                           >
+                             Đồng ý Hủy
+                           </button>
+                           
+                           {/* [MỚI] Nút Từ chối hủy */}
+                           <button 
+                             className="btn-small" 
+                             onClick={() => handleRejectCancelTask(task)}
+                             disabled={isLoading}
+                             style={{background: '#64748b', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '4px', cursor: 'pointer'}}
+                           >
+                             Từ chối
+                           </button>
+                       </div>
                      </td>
                    </tr>
                  )
@@ -312,14 +351,25 @@ const AdminDashboard = () => {
                      </td>
                      <td>
                         {(rpt.status === 'pending' || rpt.status === 'Pending') && (
-                            <button 
-                                className="btn-small btn-success" 
-                                onClick={() => handleApproveReport(rpt)}
-                                disabled={isLoading}
-                                style={{background: '#16a34a', color: 'white', border:'none', padding: '6px 12px', borderRadius: '4px', cursor:'pointer'}}
-                            >
-                                Duyệt Đơn
-                            </button>
+                            <div style={{display: 'flex', gap: '5px'}}>
+                                <button 
+                                    className="btn-small btn-success" 
+                                    onClick={() => handleApproveReport(rpt)}
+                                    disabled={isLoading}
+                                    style={{background: '#16a34a', color: 'white', border:'none', padding: '6px 12px', borderRadius: '4px', cursor:'pointer'}}
+                                >
+                                    Duyệt
+                                </button>
+                                {/* [MỚI] Nút từ chối đơn */}
+                                <button 
+                                    className="btn-small" 
+                                    onClick={() => handleRejectReport(rpt)}
+                                    disabled={isLoading}
+                                    style={{background: '#dc2626', color: 'white', border:'none', padding: '6px 12px', borderRadius: '4px', cursor:'pointer'}}
+                                >
+                                    Từ chối
+                                </button>
+                            </div>
                         )}
                         {(rpt.status === 'accepted' || rpt.status === 'Accepted') && (
                             <span style={{color: 'green', fontWeight: 'bold'}}>✓ Đã duyệt</span>
