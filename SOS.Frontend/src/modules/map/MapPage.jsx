@@ -165,34 +165,34 @@ const MapPage = () => {
         } catch (err) {}
       }
 
-      // 2. Load Reports & Sync Tasks
+      // 2. Load Reports (Accepted, InProcess, CancelPending, AND Pending)
       try {
         console.log("📡 Đang gọi API lấy danh sách Reports...");
-        const [resAccepted, resInProcess, resCancelPending] = await Promise.all([
+        const [resAccepted, resInProcess, resCancelPending, resPending] = await Promise.all([
             axios.get(`${API_BASE}/reports/status/Accepted`).catch(() => ({ data: [] })),
             axios.get(`${API_BASE}/reports/status/InProcess`).catch(() => ({ data: [] })),
-            axios.get(`${API_BASE}/reports/status/CancelPending`).catch(() => ({ data: [] }))
+            axios.get(`${API_BASE}/reports/status/CancelPending`).catch(() => ({ data: [] })),
+            // [MỚI] Gọi thêm API Pending để hiển thị đơn chờ duyệt
+            axios.get(`${API_BASE}/reports/status/Pending`).catch(() => ({ data: [] }))
         ]);
 
         const rawReports = [
             ...(resAccepted.data || []), 
             ...(resInProcess.data || []),
-            ...(resCancelPending.data || [])
+            ...(resCancelPending.data || []),
+            ...(resPending.data || []) // [MỚI] Gộp đơn pending vào
         ];
         
         console.log(`✅ Đã tải ${rawReports.length} reports.`);
 
         const processedReports = [];
         
-        // Duyệt qua từng report
         for (const report of rawReports) {
           if (report.status === "Completed") continue;
           
           const reportId = report.reportId || report.id;
 
-          // =======================================================
           // 🔥 1. GỌI API GET TASK
-          // =======================================================
           let task = null;
           try {
             const taskRes = await axios.get(`${API_BASE}/reports/tasks/gettask/${reportId}`);
@@ -202,13 +202,10 @@ const MapPage = () => {
                 } else if (!Array.isArray(taskRes.data)) {
                     task = taskRes.data;
                 }
-                console.log(`🎯 TÌM THẤY TASK cho Report ${reportId}:`, task);
             }
           } catch (e) {}
 
-          // =======================================================
           // 🔥 2. GEOCODE
-          // =======================================================
           let location = null;
           if (report.address) {
             try {
@@ -218,57 +215,49 @@ const MapPage = () => {
             } catch {}
           }
           
-          if (!location) {
-              console.warn(`❌ Không tìm thấy tọa độ cho Report ${reportId} (${report.address}) -> Bỏ qua vẽ marker.`);
-              continue; 
-          }
+          if (!location) continue; 
 
-          let displayStatus = "accepted";
+          // Mặc định hiển thị theo status trả về từ API Report
+          let displayStatus = report.status ? report.status.toLowerCase() : "pending";
+          
           let rescuerName = null;
           let rescuerPhone = null;
           let rescuerLocation = null;
           let taskId = null;
-          let rescuerId = null; // Thêm trường này để so sánh ID
+          let rescuerId = null;
           let cancelReason = null;
 
-          // 🔥 QUAN TRỌNG: MAPPING DỮ LIỆU TASK VÀO REPORT
+          // 🔥 MAPPING DỮ LIỆU TASK VÀO REPORT
           if (task && task.id) {
             taskId = task.id;
             
-          if (task.status === "in_progress") displayStatus = "in_progress";
-          if (task.status === "pending_to_cancel") {
-              displayStatus = "pending-to-cancel";
-              cancelReason = task.note || "Đang chờ duyệt hủy";
-          }
-          if (task.status === "completed") continue;
+            if (task.status === "in_progress") displayStatus = "in_progress";
+            if (task.status === "pending_to_cancel") {
+                displayStatus = "pending-to-cancel";
+                cancelReason = task.note || "Đang chờ duyệt hủy";
+            }
+            if (task.status === "completed") continue;
 
-            // Map dữ liệu từ Task
-            rescuerId = task.volunteerId; // Lấy ID của tình nguyện viên
+            rescuerId = task.volunteerId;
             rescuerName = task.volunteerName;
             rescuerLocation = task.volunteerLocation;
-            
-            // Xử lý logic số điện thoại và fallback ID
             rescuerPhone = task.volunteerPhone; 
             
-            // 🔥 FIX LỖI: Nếu ID trùng với user hiện tại -> Tự điền phone nếu thiếu
             if (freshUser && (freshUser.id === rescuerId || freshUser.userId === rescuerId)) {
-                if (!rescuerPhone) {
-                    rescuerPhone = freshUser.phone;
-                }
+                if (!rescuerPhone) rescuerPhone = freshUser.phone;
             }
           }
-          console.log("Report ID:", reportId, "Display Status:", displayStatus, "Rescuer ID:", rescuerId, "Current User ID:", freshUser?.id || freshUser?.userId);
+          
           processedReports.push({
             id: reportId, reportId, taskId,
             name: report.name, phone: report.phone, address: report.address, location,
             type: report.level, description: report.details,
             status: displayStatus, 
-            rescuerId, // Lưu ID để so sánh ở render
+            rescuerId, 
             rescuerName, rescuerPhone, rescuerLocation, cancelReason
           });
         }
 
-        console.log("🏁 Hoàn tất xử lý reports. Update state...");
         setRequests(processedReports);
         localStorage.setItem("RELIEF_REQUESTS_STATE", JSON.stringify(processedReports));
 
@@ -282,7 +271,7 @@ const MapPage = () => {
     initMapData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // --- LOGIC LOAD RELIEF POINTS (ĐIỂM AN TOÀN) ---
+  // --- LOGIC LOAD RELIEF POINTS ---
   useEffect(() => {
     const fetchReliefPoints = async () => {
       const storedPoints = localStorage.getItem("RELIEF_POINTS");
@@ -309,14 +298,11 @@ const MapPage = () => {
   // --- TỰ ĐỘNG VẼ LẠI ROUTE ---
   useEffect(() => {
     if (!currentUser || !mapRef.current || requests.length === 0) return;
-    
-    // Tìm task nào đang InProgress và là của user hiện tại (So sánh cả ID và Phone)
     const currentUserId = currentUser.id || currentUser.userId;
     const myActiveTask = requests.find(r => 
         r.status === 'in_progress' && 
         ((r.rescuerId && r.rescuerId === currentUserId) || (r.rescuerPhone === currentUser.phone))
     );
-
     if (myActiveTask && currentUser.location && myActiveTask.location) {
         setTimeout(() => { drawRoute(currentUser.location, myActiveTask.location); }, 500);
     }
@@ -355,14 +341,13 @@ const MapPage = () => {
         { volunteerId, note: "Tôi sẽ đến cứu ngay" }
       );
 
-      // Cập nhật state cục bộ
       const newRequests = requests.map((r) => {
         if (r.reportId === request.reportId) {
           return {
             ...r, 
             taskId: res.data.taskId, 
             status: "in_progress",
-            rescuerId: volunteerId, // Lưu ID ngay
+            rescuerId: volunteerId,
             rescuerName: currentUser.fullName || currentUser.name,
             rescuerPhone: currentUser.phone, 
             rescuerLocation: currentUser.location,
@@ -459,18 +444,58 @@ const MapPage = () => {
     } catch (e) {} finally { setIsLoading(false); }
   };
 
+  // --- [MỚI] TẠO YÊU CẦU CỨU TRỢ & HIỂN THỊ NGAY ---
   const handleCreateRequest = async () => { 
     if (!currentUser) { alert("Vui lòng đăng nhập."); return; }
     if (!currentUser.address) { alert("Vui lòng cập nhật vị trí/địa chỉ của bạn trước khi gửi yêu cầu."); return; }
+    
     setIsLoading(true);
     try {
       const API_BASE = "http://localhost:5075/api";
-      const payload = { phone: currentUser.phone, name: currentUser.fullName || currentUser.name, address: currentUser.address, details: reqDesc, level: reqType };
-      await axios.post(`${API_BASE}/reports`, payload, { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem("accessToken")}` } });
-      alert("✅ Đã gửi tín hiệu SOS thành công!");
-      setShowRequestForm(false); setReqDesc("");
-      window.location.reload(); 
-    } catch (error) { console.error("Lỗi tạo yêu cầu:", error); alert("❌ Gửi yêu cầu thất bại."); } finally { setIsLoading(false); }
+      const payload = { 
+        phone: currentUser.phone, 
+        name: currentUser.fullName || currentUser.name, 
+        address: currentUser.address, 
+        details: reqDesc, 
+        level: reqType 
+      };
+      
+      const res = await axios.post(`${API_BASE}/reports`, payload, { 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem("accessToken")}` } 
+      });
+
+      alert("✅ Đã gửi tín hiệu SOS thành công! Vui lòng chờ Admin duyệt.");
+      
+      // Tạo object report tạm thời để hiển thị ngay lập tức
+      const newReport = {
+        id: res.data.id || Date.now(), 
+        reportId: res.data.id || Date.now(),
+        taskId: null,
+        name: currentUser.fullName || currentUser.name,
+        phone: currentUser.phone,
+        address: currentUser.address,
+        location: currentUser.location, // Dùng vị trí hiện tại của user
+        type: reqType,
+        description: reqDesc,
+        status: "pending", // 🔥 Quan trọng: đặt status là pending
+        rescuerId: null,
+        rescuerName: null
+      };
+
+      const updatedRequests = [...requests, newReport];
+      setRequests(updatedRequests);
+      localStorage.setItem("RELIEF_REQUESTS_STATE", JSON.stringify(updatedRequests));
+
+      setShowRequestForm(false); 
+      setReqDesc("");
+      // Không cần window.location.reload() nữa
+
+    } catch (error) { 
+      console.error("Lỗi tạo yêu cầu:", error); 
+      alert("❌ Gửi yêu cầu thất bại."); 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   // --- RENDER VARS ---
@@ -502,28 +527,26 @@ const MapPage = () => {
         {currentUser && currentUser.location && <Marker position={currentUser.location} icon={isVolunteerFunc ? blueIcon : redIcon} opacity={0.6} zIndexOffset={-100}><Popup>Vị trí của bạn</Popup></Marker>}
         
         {requests.map((req) => {
-            const isAccepted = req.status === "accepted";
-            const isInProgress = req.status === "in_progress";
-            const isPendingCancel = req.status === "pending-to-cancel";
+            // Chuẩn hóa status
+            const statusLower = (req.status || "").toLowerCase();
 
-            // 🔥 LOGIC KIỂM TRA TASK CỦA MÌNH (Ưu tiên ID -> Phone)
+            const isAccepted = statusLower === "accepted";
+            const isInProgress = statusLower === "in_progress";
+            const isPendingCancel = statusLower === "pending-to-cancel" || statusLower === "pendingtocancel";
+            const isPending = statusLower === "pending"; // Trạng thái chờ duyệt
+
             let isMyTask = false;
             if (currentUser) {
                 const currentUserId = currentUser.id || currentUser.userId;
-                // Check ID
-                if (req.rescuerId && currentUserId && req.rescuerId === currentUserId) {
-                    isMyTask = true;
-                }
-                // Fallback Check Phone
-                else if (req.rescuerPhone && currentUser.phone && req.rescuerPhone === currentUser.phone) {
-                    isMyTask = true;
-                }
+                if (req.rescuerId && currentUserId && req.rescuerId === currentUserId) isMyTask = true;
+                else if (req.rescuerPhone && currentUser.phone && req.rescuerPhone === currentUser.phone) isMyTask = true;
             }
 
             let statusLabel = "";
             if (isAccepted) statusLabel = "Đã duyệt - Cần người cứu";
             if (isInProgress) statusLabel = isMyTask ? "Đang thực hiện (Bởi bạn)" : "Người khác đang cứu";
             if (isPendingCancel) statusLabel = "Đang chờ Admin hủy";
+            if (isPending) statusLabel = "⏳ Đang chờ Admin duyệt";
 
             return (
             <React.Fragment key={req.reportId || req.id}>
@@ -536,27 +559,29 @@ const MapPage = () => {
                   Chi tiết: {req.description}<br />
                   Địa chỉ: {req.address}<br />
                   
-                  <div style={{ marginTop: "5px", fontStyle: "italic", color: "#666" }}>Trạng thái: <strong>{statusLabel}</strong></div>
+                  <div style={{ marginTop: "5px", fontStyle: "italic", color: isPending ? "#d97706" : "#666" }}>
+                    Trạng thái: <strong>{statusLabel}</strong>
+                  </div>
                   
                   {isPendingCancel && <div style={{color: "orange", fontSize: "0.9em"}}>Lý do hủy: {req.cancelReason}</div>}
 
                   {isVolunteerFunc && (
                     <div style={{ marginTop: "10px", textAlign: "center" }}>
-                      {/* 1. Chỉ hiện nút "Tôi sẽ cứu" khi thực sự là accepted và chưa có ai nhận */}
-                      {req.status === "accepted" && (
+                      {/* Chỉ hiện nút nhận cứu khi đã Accepted */}
+                      {isAccepted && (
                         <button onClick={() => handleAcceptSupport(req)} style={{ background: "#007bff", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}>
                           ✋ Tôi sẽ cứu
                         </button>
                       )}
 
-                      {/* 2. Nếu đang in_progress hoặc pending cancel */}
-                      {(req.status === "in_progress" || req.status === "pending-to-cancel") && isMyTask && (
+                      {/* Các nút điều khiển khi đang thực hiện */}
+                      {(isInProgress || isPendingCancel) && isMyTask && (
                         <div style={{ background: "#d1fae5", padding: "5px", borderRadius: "4px" }}>
                           <button onClick={() => drawRoute(currentUser.location, req.location)} style={{ background: "#3b82f6", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%", marginBottom: "5px" }}>
                             🗺️ Dẫn đường
                           </button>
 
-                          {req.status !== "pending-to-cancel" && (
+                          {!isPendingCancel && (
                             <>
                               <button onClick={() => handleCompleteSupport(req)} style={{ background: "#059669", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%", marginBottom: "5px" }}>
                                 ✅ Đã xong
@@ -566,12 +591,11 @@ const MapPage = () => {
                               </button>
                             </>
                           )}
-                          {req.status === "pending-to-cancel" && <div style={{fontSize: '0.8rem', color: '#d97706'}}>Đang chờ duyệt hủy...</div>}
+                          {isPendingCancel && <div style={{fontSize: '0.8rem', color: '#d97706'}}>Đang chờ duyệt hủy...</div>}
                         </div>
                       )}
 
-                      {/* 3. Nếu đang in_progress nhưng không phải của mình */}
-                      {req.status === "in_progress" && !isMyTask && (
+                      {isInProgress && !isMyTask && (
                         <div style={{ background: "#f3f4f6", padding: "5px", borderRadius: "4px", color: "#6b7280", fontSize: "0.9em" }}>
                           Đã có TNV khác nhận hỗ trợ.
                         </div>
