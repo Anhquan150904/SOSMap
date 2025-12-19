@@ -22,5 +22,11 @@ namespace Sos.Application.Services
             var pts = await _safetyRepo.FindNearbyAsync(province);
             return pts.Select(p => new { id = p.Id, name = p.Name, type = p.Type, address = p.Address });
         }
+
+        public async Task<SafetyPoint> CreateNewSafetyPoinṭ̣̣ (SafetyPoint point)
+        {
+            await _safetyRepo.AddAsync(point);
+            return point;
+        }
     }
 }

@@ -3,11 +3,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Sos.Infrastructure.Hubs
 {
-    public class TestHub : Hub
+    public class SignalRHub : Hub
     {
-        private readonly ILogger<TestHub> _logger;
+        private readonly ILogger<SignalRHub> _logger;
 
-        public TestHub(ILogger<TestHub> logger)
+        public SignalRHub(ILogger<SignalRHub> logger)
         {
             _logger = logger;
         }

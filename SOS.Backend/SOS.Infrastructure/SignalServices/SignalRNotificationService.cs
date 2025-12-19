@@ -7,9 +7,9 @@ namespace Sos.Application.Services
 {
     public class SignalRNotificationService : INotificationService
     {
-        private readonly IHubContext<TestHub> _hubContext;
+        private readonly IHubContext<SignalRHub> _hubContext;
 
-        public SignalRNotificationService(IHubContext<TestHub> hubContext)
+        public SignalRNotificationService(IHubContext<SignalRHub> hubContext)
         {
             _hubContext = hubContext;
         }

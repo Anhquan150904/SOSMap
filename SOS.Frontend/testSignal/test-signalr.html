@@ -39,7 +39,7 @@
     // ✅ STEP 2: Connect SignalR
     async function connectSignalR() {
       connection = new signalR.HubConnectionBuilder()
-        .withUrl("http://localhost:5075/testhub")
+        .withUrl("http://localhost:5075/SignalRHub")
         .withAutomaticReconnect()
         .configureLogging(signalR.LogLevel.Information)
         .build();

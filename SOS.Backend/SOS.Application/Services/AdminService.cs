@@ -90,6 +90,16 @@ namespace Sos.Application.Services
                 Message = "Báo cáo của bạn đã được chấp nhận và đang trong quá trình xử lý."
             });
         }
+
+        public async Task RejectSOSReport(Guid reportId)
+        {
+            var report = await _reportRepository.GetByIdAsync(reportId);
+            await _reportRepository.DeleteAsync(reportId);
+            await _notification.NotifyReportStatusChanged(report.UserId, new
+            {
+                Message = "Báo cáo của bạn đã bị từ chối."
+            });
+        }
     }
 
 

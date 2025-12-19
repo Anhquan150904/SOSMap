@@ -46,5 +46,13 @@ namespace Sos.WebApi.Controllers
             await _service.AcceptSOSReport(reportId);
             return Ok(new { canceled = true });
         }
+
+        [HttpPost("report/{reportId:guid}/reject-to-sos-report")]
+        public async Task<IActionResult> RejectSOSReport(Guid reportId)
+        {
+            await _service.RejectSOSReport(reportId);
+            return Ok(new { canceled = true });
+        }
+
     }
 }

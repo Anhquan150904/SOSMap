@@ -51,6 +51,7 @@ namespace Sos.Application.Services
 
             await _notification.NotifyReportCreatedAsync(new
             {
+                Message = "Có yêu cầu cứu hộ mới.",
                 id = report.Id,
                 level = report.Level,
                 status = report.Status,
@@ -108,6 +109,10 @@ namespace Sos.Application.Services
             await _reportRepo.UpdateAsync(report);
 
             await _notification.NotifyAdminsTaskAccepted(new { reportId, volunteerId, task.Id });
+            await _notification.NotifyReportStatusChanged(report.UserId, new
+            {
+                Message = "Yêu cầu cứu hộ của bạn đang được thực hiện."
+            });
 
             return task.Id;
         }
@@ -128,6 +133,7 @@ namespace Sos.Application.Services
 
             await _notification.NotifyVolunteersRequestTaskCanceled(new
             {
+                Message = "Có đội cứu hộ yêu cầu hủy nhiệm vụ.",
                 taskId,
                 volunteerId,
                 note
@@ -156,6 +162,7 @@ namespace Sos.Application.Services
 
             await _notification.NotifyAdminsTaskCompleted(new
             {
+                Message = "Nhiệm vụ cứu hộ hoàn tất.",
                 taskId,
                 volunteerId,
                 reportId = task.ReportId
