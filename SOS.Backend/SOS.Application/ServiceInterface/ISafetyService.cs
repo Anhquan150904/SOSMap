@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Sos.Domain.Entities;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,5 +10,6 @@ namespace SOS.Service.Interfaces
     public interface ISafetyService
     {
         Task<IEnumerable<object>> GetNearbySafetyPointsAsync(string province);
+        Task<SafetyPoint> CreateNewSafetyPoinṭ̣̣ (SafetyPoint point);
     }
 }
