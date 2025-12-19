@@ -24,7 +24,7 @@ const HomePage = () => {
   const [showLocaDropdown, setShowLocaDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Form SOS
+  // Form SOS (Giữ lại state để tránh lỗi reference, dù không dùng nút nữa)
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [reqType, setReqType] = useState("Cần lương thực");
   const [reqDesc, setReqDesc] = useState("");
@@ -114,13 +114,7 @@ const HomePage = () => {
     (user.role === "volunteer" && user.status === "active")
   );
 
-  // 2. Quyền gửi SOS (Chỉ Người dân hoặc Volunteer CHƯA duyệt)
-  // [CẬP NHẬT] Volunteer đã active sẽ KHÔNG thấy nút này
-  const canRequestSOS = user && (
-      user.role === "citizen" || 
-      user.role === "volunteer-pending" || 
-      (user.role === "volunteer" && user.status !== "active") // Pending volunteer logic
-  );
+  // [ĐÃ XÓA] Logic canRequestSOS vì không còn dùng nút này ở HomePage nữa
 
   // --- Logic hiển thị thông báo Pending ---
   const renderNotifications = () => {
@@ -226,11 +220,7 @@ const HomePage = () => {
             <h1>Thông Tin Cứu Hộ</h1><p>Dự án cộng đồng nhằm thu thập và trực quan hóa thông tin liên quan đến cứu trợ.</p>
             <div className="lst-btn-hp">
                 <button className="btn-hero" onClick={() => navigate("/map")}>Xem Bản Đồ</button>
-                
-                {/* [ĐÃ SỬA] Nút này chỉ hiện nếu canRequestSOS = true */}
-                {canRequestSOS && (
-                    <button className="btn-request" onClick={() => setShowRequestForm(true)}>Gửi yêu cầu hỗ trợ</button>
-                )}
+                {/* [ĐÃ XÓA] Nút Gửi yêu cầu hỗ trợ đã được loại bỏ theo yêu cầu */}
             </div>
           </div>
         </div>

@@ -8,15 +8,17 @@ const API_BASE = "http://localhost:5075/api";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("requests"); // 'requests' | 'users'
+  const [activeTab, setActiveTab] = useState("requests");
   
   // Dữ liệu
   const [pendingVolunteers, setPendingVolunteers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
-  const [reports, setReports] = useState([]); // [MỚI] Danh sách đơn cứu trợ
+  const [reports, setReports] = useState([]); 
   const [isLoading, setIsLoading] = useState(false);
+  
+  // [MỚI] State lưu danh sách yêu cầu hủy task
+  const [cancelRequests, setCancelRequests] = useState([]); 
 
-  // --- 1. LOAD DỮ LIỆU TỔNG HỢP ---
   useEffect(() => {
     fetchData();
   }, []);
@@ -26,7 +28,7 @@ const AdminDashboard = () => {
     const config = { headers: { Authorization: `Bearer ${token}` } };
 
     try {
-      // A. Lấy danh sách User (Logic cũ - Giữ nguyên)
+      // 1. Lấy danh sách User (Giữ nguyên)
       try {
         const resPending = await axios.get(`${API_BASE}/user/by-status/Pending`, config);
         const listPending = resPending.data || [];
@@ -39,11 +41,9 @@ const AdminDashboard = () => {
         console.error("Lỗi tải User:", errUser);
       }
 
-      // B. [FIX] Lấy danh sách Đơn Cứu Trợ (Reports)
-      // Thay vì gọi /api/reports (bị lỗi 400), ta gọi từng status rồi gộp lại
+      // 2. Lấy danh sách Reports
+      let allReports = [];
       try {
-        // Các status phổ biến: Pending (Chờ), Accepted (Đã nhận), Done (Xong), Cancelled (Hủy)
-        // Dùng Promise.all để gọi song song cho nhanh
         const [resPending, resAccepted, resInProcess, resDone] = await Promise.all([
             axios.get(`${API_BASE}/reports/status/Pending`, config).catch(() => ({ data: [] })),
             axios.get(`${API_BASE}/reports/status/Accepted`, config).catch(() => ({ data: [] })),
@@ -51,23 +51,66 @@ const AdminDashboard = () => {
             axios.get(`${API_BASE}/reports/status/Done`, config).catch(() => ({ data: [] }))
         ]);
 
-        // Gộp tất cả lại
-        const allReports = [
+        allReports = [
             ...(resPending.data || []),
             ...(resAccepted.data || []),
             ...(resInProcess.data || []),
             ...(resDone.data || [])
         ];
 
-        // Sắp xếp theo ID giảm dần (mới nhất lên đầu)
-        // Hoặc theo ngày tạo nếu có field created_at
         const sortedReports = allReports.sort((a, b) => (b.id || 0) - (a.id || 0));
-        
         setReports(sortedReports);
-        console.log("📦 Danh sách đơn cứu trợ (Đã fix):", sortedReports);
-
       } catch (errReport) {
         console.error("Lỗi tải Reports:", errReport);
+      }
+
+      // 3. [CHIẾN THUẬT MỚI] LẤY TASK CỦA TỪNG REPORT ĐỂ KIỂM TRA HỦY
+      // Vì Report không chứa info Task, ta phải gọi API lấy Task cho từng Report đang chạy
+      try {
+        // Chỉ cần check các đơn đang thực hiện (Accepted, InProcess)
+        const activeReports = allReports.filter(r => 
+            r.status === 'Accepted' || 
+            r.status === 'InProcess' || 
+            r.status === 'accepted' || 
+            r.status === 'inprocess'
+        );
+
+        // Gọi API lấy task song song cho tất cả các đơn này
+        const taskPromises = activeReports.map(async (report) => {
+            try {
+                // API: /api/reports/tasks/gettask/{reportId}
+                const res = await axios.get(`${API_BASE}/reports/tasks/gettask/${report.id}`, config);
+                const task = res.data; // Task trả về từ Backend
+                
+                if (task) {
+                    // Gắn thêm thông tin Report vào object Task để hiển thị
+                    return { 
+                        ...task, 
+                        reportId: report.id, 
+                        reportName: report.name 
+                    };
+                }
+                return null;
+            } catch (e) {
+                // Nếu report chưa có task hoặc lỗi thì bỏ qua
+                return null;
+            }
+        });
+
+        const tasks = await Promise.all(taskPromises);
+
+        // Lọc ra các Task có status là 'pending-to-canceled'
+        const requests = tasks.filter(t => {
+            if (!t) return false;
+            const status = t.status ? String(t.status).toLowerCase() : "";
+            return status === 'pending-to-canceled' || status === 'pendingtocanceled';
+        });
+
+        console.log("⚠️ Đã tìm thấy Task hủy:", requests);
+        setCancelRequests(requests);
+
+      } catch (errTask) {
+        console.error("Lỗi khi quét Tasks:", errTask);
       }
 
     } catch (error) {
@@ -75,7 +118,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // --- 2. XỬ LÝ DUYỆT USER (Giữ nguyên) ---
   const handleApproveVolunteer = async (user) => {
     if (!window.confirm(`Duyệt thành viên ${user.fullName} làm Tình Nguyện Viên?`)) return;
     setIsLoading(true);
@@ -91,29 +133,58 @@ const AdminDashboard = () => {
     } finally { setIsLoading(false); }
   };
 
-  // --- 3. [MỚI] XỬ LÝ DUYỆT ĐƠN CỨU TRỢ ---
   const handleApproveReport = async (report) => {
     if (!window.confirm(`Duyệt đơn cứu trợ của: ${report.name}?`)) return;
-    
     setIsLoading(true);
     try {
-      // Gọi API: POST /api/admin/reports/{reportId}/accept
       await axios.post(
         `${API_BASE}/admin/report/${report.id}/accept-to-sos-report`, 
-        {}, // Body rỗng
+        {}, 
         { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } }
       );
-
       alert("✅ Đã duyệt đơn cứu trợ thành công!");
-      fetchData(); // Load lại danh sách để cập nhật trạng thái
-
+      fetchData(); 
     } catch (error) {
       console.error("Lỗi duyệt đơn:", error);
-      alert("❌ Lỗi khi duyệt đơn. Vui lòng thử lại.");
+      alert("❌ Lỗi khi duyệt đơn.");
     } finally {
       setIsLoading(false);
     }
   };
+
+  // --- [UPDATE] XỬ LÝ XÁC NHẬN HỦY TASK ---
+  const handleConfirmCancelTask = async (task) => {
+    // Lưu ý: Task lấy từ API gettask đôi khi field VolunteerId viết hoa/thường khác nhau
+    const volId = task.volunteerId || task.VolunteerId;
+
+    if (!task.id || !volId) {
+      alert(`❌ Lỗi dữ liệu: Thiếu thông tin.\nTaskID: ${task.id}\nVolID: ${volId}`);
+      return;
+    }
+
+    if (!window.confirm(`Xác nhận hủy Task ID: ${task.id} \ncủa Volunteer: ${volId}?`)) return;
+
+    setIsLoading(true);
+    try {
+      const url = `${API_BASE}/admin/tasks/${task.id}/cancel?volunteerId=${volId}`;
+      console.log("🚀 Calling API:", url); 
+
+      await axios.post(
+        url,
+        {}, 
+        { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } }
+      );
+
+      alert("✅ Đã chấp nhận hủy Task thành công!");
+      fetchData(); 
+    } catch (err) {
+      console.error("Lỗi hủy task:", err);
+      const msg = err.response?.data?.message || err.message;
+      alert(`❌ Lỗi: ${msg}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   const handleLogout = () => {
     localStorage.removeItem("currentUser");
@@ -121,7 +192,6 @@ const AdminDashboard = () => {
     navigate("/admin-login");
   };
 
-  // --- HELPER: RENDER TABLE ---
   const renderTable = (data, columns, renderRow) => (
     <div className="table-container">
       <table className="admin-table">
@@ -151,8 +221,6 @@ const AdminDashboard = () => {
       </header>
 
       <div className="dashboard-container">
-        
-        {/* TAB 1: QUẢN LÝ (Gồm User Pending & Reports) */}
         {activeTab === "requests" && (
           <div className="requests-section">
             
@@ -176,8 +244,46 @@ const AdminDashboard = () => {
                 )
               )}
             </div>
+
+            {/* 2. DUYỆT YÊU CẦU HỦY TASK (Đã dùng API gettask riêng) */}
+            <div className="section-block" style={{ borderLeft: '5px solid #ef4444' }}>
+               <h3>⚠️ Yêu cầu hủy nhiệm vụ (Volunteer)</h3>
+               {renderTable(
+                 cancelRequests,
+                 ["Mã Report", "Volunteer ID", "Lý do hủy (Note)", "Thời gian", "Hành động"],
+                 (task, idx) => (
+                   <tr key={task.id || idx}>
+                     <td>
+                       <strong>{task.reportName || 'N/A'}</strong><br/>
+                       <small>Report ID: {task.reportId}</small>
+                     </td>
+                     <td>
+                       <code style={{fontSize: '0.8rem'}}>{(task.volunteerId || task.VolunteerId)?.substring(0, 8)}...</code>
+                     </td>
+                     <td>
+                       <span style={{ color: '#d97706', fontWeight: 'bold' }}>
+                         "{task.note || 'Không có'}"
+                       </span>
+                     </td>
+                     <td>
+                       {task.updatedAt ? new Date(task.updatedAt).toLocaleString('vi-VN') : '-'}
+                     </td>
+                     <td>
+                       <button 
+                         className="btn-small" 
+                         onClick={() => handleConfirmCancelTask(task)}
+                         disabled={isLoading}
+                         style={{background: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer'}}
+                       >
+                         {isLoading ? "..." : "Đồng ý Hủy"}
+                       </button>
+                     </td>
+                   </tr>
+                 )
+               )}
+            </div>
             
-            {/* 2. [MỚI] DANH SÁCH ĐƠN CỨU TRỢ */}
+            {/* 3. DANH SÁCH ĐƠN CỨU TRỢ */}
             <div className="section-block">
                <h3>📋 Tất Cả Đơn Cứu Trợ</h3>
                {renderTable(
@@ -196,7 +302,6 @@ const AdminDashboard = () => {
                      </td>
                      <td style={{maxWidth: '200px'}}>{rpt.address}</td>
                      <td>
-                        {/* Hiển thị badge màu tùy theo status */}
                         <span className={`badge status-${rpt.status}`} 
                               style={{
                                 background: rpt.status === 'pending' ? '#fef3c7' : rpt.status === 'accepted' ? '#d1fae5' : '#f3f4f6',
@@ -206,7 +311,6 @@ const AdminDashboard = () => {
                         </span>
                      </td>
                      <td>
-                        {/* Chỉ hiện nút Duyệt nếu đơn đang Pending */}
                         {(rpt.status === 'pending' || rpt.status === 'Pending') && (
                             <button 
                                 className="btn-small btn-success" 
@@ -228,7 +332,6 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* TAB 2: DANH SÁCH USER */}
         {activeTab === "users" && (
           <div className="section-block">
             <h3>👥 Danh sách toàn bộ User</h3>
@@ -246,7 +349,6 @@ const AdminDashboard = () => {
             )}
           </div>
         )}
-
       </div>
     </div>
   );
