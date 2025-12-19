@@ -3,11 +3,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Sos.Infrastructure.Hubs
 {
-    public class TestHub : Hub
+    public class SignalRHub : Hub
     {
-        private readonly ILogger<TestHub> _logger;
+        private readonly ILogger<SignalRHub> _logger;
 
-        public TestHub(ILogger<TestHub> logger)
+        public SignalRHub(ILogger<SignalRHub> logger)
         {
             _logger = logger;
         }
@@ -72,6 +72,16 @@ namespace Sos.Infrastructure.Hubs
                 await Groups.AddToGroupAsync(
                     Context.ConnectionId,
                     $"volunteer_team_{userId}"
+                );
+            }
+            if (role == "citizen" && userId.HasValue)
+            {
+                if (status == "active")
+                    await Groups.AddToGroupAsync(Context.ConnectionId, "citizen_active");
+
+                await Groups.AddToGroupAsync(
+                    Context.ConnectionId,
+                    $"user_{userId}"
                 );
             }
         }

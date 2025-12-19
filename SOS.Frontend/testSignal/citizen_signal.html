@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>SOS SignalR – Citizen Test</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+</head>
+
+<body>
+  <h2>SOS SignalR – Test Citizen Notification</h2>
+
+  <button onclick="loginCitizen()">1️⃣ Login Citizen</button>
+  <button onclick="connectSignalR()">2️⃣ Connect SignalR</button>
+  <button onclick="joinUserGroup()">3️⃣ Join User Group</button>
+
+  <pre id="log"></pre>
+
+  <script>
+    const log = msg =>
+      document.getElementById("log").textContent += msg + "\n";
+
+    let connection;
+    let currentUser = null;
+
+    // ✅ STEP 1: Login Citizen (fake)
+    function loginCitizen() {
+      currentUser = {
+        userId: "05005DED-915D-47E7-3931-08DE35B4E018", // đổi đúng citizenId
+        role: "citizen",
+        status: "active"
+      };
+
+      log("✅ Citizen login thành công:");
+      log(JSON.stringify(currentUser, null, 2));
+    }
+
+    // ✅ STEP 2: Connect SignalR
+    async function connectSignalR() {
+      connection = new signalR.HubConnectionBuilder()
+        .withUrl("http://localhost:5075/SignalRHub")
+        .withAutomaticReconnect()
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+      // ===== LISTEN EVENTS =====
+      connection.on("ReportStatusChanged", payload => {
+        log("🔄 ReportStatusChanged:");
+        log(JSON.stringify(payload, null, 2));
+      });
+
+      connection.on("ReportCanceled", payload => {
+        log("❌ ReportCanceled:");
+        log(JSON.stringify(payload, null, 2));
+      });
+
+      connection.on("ServerMessage", msg => {
+        log("📩 ServerMessage: " + msg);
+      });
+
+      await connection.start();
+      log("✅ SignalR connected");
+    }
+
+    // ✅ STEP 3: Join group user_{userId}
+    async function joinUserGroup() {
+      if (!currentUser || !connection) {
+        alert("Chưa login hoặc chưa connect SignalR");
+        return;
+      }
+
+      await connection.invoke(
+        "JoinByRoleAndStatus",
+        currentUser.role,
+        currentUser.status,
+        currentUser.userId
+      );
+
+      log(`✅ Joined group user_${currentUser.userId}`);
+    }
+  </script>
+</body>
+</html>

@@ -16,9 +16,16 @@ using StackExchange.Redis;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Database
-var conn = @"Server=HOUTARO\SQLEXPRESS;Database=SOSMap;Trusted_Connection=True;TrustServerCertificate=True;Encrypt=False;";
-builder.Services.AddDbContext<SosDbContext>(opts =>
-    opts.UseSqlServer(conn, x => x.UseNetTopologySuite()));
+var connectionString = builder.Configuration
+    .GetConnectionString("DefaultConnection");
+
+builder.Services.AddDbContext<SosDbContext>(options =>
+    options.UseSqlServer(connectionString, x => x.UseNetTopologySuite()));
+
+// redis
+var redisConn = builder.Configuration.GetValue<string>("Redis") ?? "localhost:6379";
+
+
 
 // 2. Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -32,12 +39,6 @@ builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<IAuthService ,AuthService>();
 builder.Services.AddScoped<IUserService ,UserService>();
 builder.Services.AddScoped<ISafetyService, SafetyService>();
-
-// 3. Services
-builder.Services.AddScoped<ReportService>();
-
-var redisConn = builder.Configuration.GetValue<string>("Redis") ?? "localhost:6379";
-
 builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 {
     // Đảm bảo Redis server đang chạy
@@ -73,6 +74,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+
+
 var app = builder.Build();
 
 // Middleware
@@ -83,7 +86,7 @@ app.UseCors("AllowAll");  // Phải đứng trước MapHub
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<TestHub>("/testhub");
+app.MapHub<SignalRHub>("/SignalRHub");
 
 // Áp dụng migration
 using (var scope = app.Services.CreateScope())

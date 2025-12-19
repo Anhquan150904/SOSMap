@@ -7,9 +7,9 @@ namespace Sos.Application.Services
 {
     public class SignalRNotificationService : INotificationService
     {
-        private readonly IHubContext<TestHub> _hubContext;
+        private readonly IHubContext<SignalRHub> _hubContext;
 
-        public SignalRNotificationService(IHubContext<TestHub> hubContext)
+        public SignalRNotificationService(IHubContext<SignalRHub> hubContext)
         {
             _hubContext = hubContext;
         }
@@ -52,6 +52,22 @@ namespace Sos.Application.Services
             return _hubContext.Clients
                 .Group(groupName)
                 .SendAsync("TaskCanceledApproved", payload);
+        }
+
+        public Task NotifyReportStatusChanged(Guid userId, object payload)
+        {
+            var groupName = $"user_{userId}";
+            return _hubContext.Clients
+                .Group(groupName)
+                .SendAsync("ReportStatusChanged", payload);
+        }
+
+        public Task NotifyReportCancel(Guid userId, object payload)
+        {
+            var groupName = $"user_{userId}";
+            return _hubContext.Clients
+                .Group(groupName)
+                .SendAsync("ReportCanceled", payload);
         }
 
     }

@@ -23,6 +23,13 @@ namespace Sos.WebApi.Controllers
             await _service.CancelTaskAsync(taskId, volunteerId);
             return Ok(new { canceled = true });
         }
+        // không chấp nhận hủy
+        [HttpPost("tasks/{taskId:guid}/no-cancel")]
+        public async Task<IActionResult> NoCancelTask(Guid taskId, Guid volunteerId)
+        {
+            await _service.NotCancelTaskAsync(taskId, volunteerId);
+            return Ok(new { canceled = true });
+        }
 
         // chấp nhận yêu cầu trở thành người cứu hộ'
         [HttpPost("user/{userId:guid}/accept-to-volunteer")]
@@ -39,5 +46,13 @@ namespace Sos.WebApi.Controllers
             await _service.AcceptSOSReport(reportId);
             return Ok(new { canceled = true });
         }
+
+        [HttpPost("report/{reportId:guid}/reject-to-sos-report")]
+        public async Task<IActionResult> RejectSOSReport(Guid reportId)
+        {
+            await _service.RejectSOSReport(reportId);
+            return Ok(new { canceled = true });
+        }
+
     }
 }
