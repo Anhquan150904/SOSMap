@@ -4,6 +4,7 @@ using NetTopologySuite.Geometries;
 using Sos.Domain.Entities;
 using Sos.Domain.Interfaces;
 using Sos.Infrastructure.Persistence;
+using System.Collections.Generic;
 
 namespace Sos.Infrastructure.Repositories
 {
@@ -31,6 +32,42 @@ namespace Sos.Infrastructure.Repositories
                             ))
                 .OrderBy(s => s.CreatedAt)
                 .Take(limit)
+                .ToListAsync(ct);
+        }
+        public async Task UpdateAsync(CancellationToken ct = default)
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+
+        public async Task DeletedAsync(Guid id, CancellationToken ct = default)
+        {
+            var entity = await _db.SafetyPoints.FirstOrDefaultAsync(r => r.Id == id, ct);
+            if (entity != null)
+            {
+                _db.SafetyPoints.Remove(entity);
+                await _db.SaveChangesAsync(ct);
+            }
+        }
+
+        public async Task<SafetyPoint> GetByIdAsync(Guid id, CancellationToken ct = default)
+        {
+            var entity = await _db.SafetyPoints.FirstOrDefaultAsync(r => r.Id == id, ct);
+            if (entity == null)
+            {
+                throw new InvalidOperationException($"SafetyPoint with ID {id} not found.");
+            }
+            return entity;
+        }
+
+        public async Task<List<SafetyPoint?>> GetSafetyByStatus(string status, CancellationToken ct = default)
+        {
+            return await _db.SafetyPoints
+            .Where(s => s.Status != null &&
+                EF.Functions.Like(
+                    s.Status.ToLower(),
+                    "%" + status.ToLower() + "%"
+                ))
+                .OrderBy(s => s.CreatedAt)
                 .ToListAsync(ct);
         }
     }

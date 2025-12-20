@@ -1,4 +1,5 @@
 ﻿using Sos.Domain.Entities;
+using SOS.Application.DTOs;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,5 +12,9 @@ namespace SOS.Service.Interfaces
     {
         Task<IEnumerable<object>> GetNearbySafetyPointsAsync(string province);
         Task<SafetyPoint> CreateNewSafetyPoinṭ̣̣ (SafetyPoint point);
+
+        Task DeletedSafetyPointAsync(Guid id);
+        Task UpdateSafetyPointAsync(Guid id, SafetyUpdateDto point);
+        Task<List<SafetyPoint?>> GetSafetyByStatus(string status);
     }
 }
