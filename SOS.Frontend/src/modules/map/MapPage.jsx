@@ -48,12 +48,12 @@ const LoadingOverlay = () => (
       borderTop: "5px solid #3498db", borderRadius: "50%",
       animation: "spin 1s linear infinite"
     }}></div>
-    <h3 style={{ marginTop: "15px", color: "#333" }}>Đang tải dữ liệu bản đồ...</h3>
+    <h3 style={{ marginTop: "15px", color: "#333" }}>Đang xử lý dữ liệu...</h3>
     <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
   </div>
 );
 
-// Component để di chuyển map mượt mà không cần remount
+// Component để di chuyển map mượt mà
 function ChangeView({ center, zoom }) {
   const map = useMap();
   useEffect(() => {
@@ -83,11 +83,13 @@ const MapPage = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Khởi tạo reliefPoints từ localStorage
   const [reliefPoints, setReliefPoints] = useState(() => {
     const saved = localStorage.getItem("RELIEF_POINTS");
     return saved ? JSON.parse(saved) : [];
   });
+
+  // [MỚI] State quản lý ẩn hiện điểm an toàn
+  const [showReliefPoints, setShowReliefPoints] = useState(false);
 
   const [manualPosition, setManualPosition] = useState(() => {
       const saved = localStorage.getItem("MANUAL_POSITION");
@@ -119,6 +121,17 @@ const MapPage = () => {
     return null;
   };
 
+  // --- [MỚI] KIỂM TRA ĐIỀU HƯỚNG TỪ HOME PAGE ---
+  useEffect(() => {
+    // Nếu có location.state (tức là bấm "Xem vị trí" từ HomePage), thì hiện điểm an toàn
+    if (location.state && location.state.position) {
+        setShowReliefPoints(true);
+    } else {
+        // Nếu vào trực tiếp Map (từ menu), ẩn đi
+        setShowReliefPoints(false);
+    }
+  }, [location.state]);
+
   // Hàm vẽ đường
   const drawRoute = (start, end) => {
     if (!mapRef.current) return;
@@ -134,15 +147,30 @@ const MapPage = () => {
     routingControlRef.current = routingControl;
   };
 
-  // --- 1. LOAD USER & REPORTS & TASKS (CORE LOGIC) ---
+  // --- HELPER: XỬ LÝ TRÙNG VỊ TRÍ (OFFSET MARKER) ---
+  const getDisplayPosition = (targetLoc, userLoc) => {
+    if (!targetLoc || !userLoc) return targetLoc;
+    const EPSILON = 0.00001; 
+    const OFFSET = 0.00015; // ~15m
+
+    const latDiff = Math.abs(targetLoc[0] - userLoc[0]);
+    const lngDiff = Math.abs(targetLoc[1] - userLoc[1]);
+
+    // Nếu trùng vị trí, dịch chuyển nhẹ
+    if (latDiff < EPSILON && lngDiff < EPSILON) {
+        return [targetLoc[0] + OFFSET, targetLoc[1] + OFFSET];
+    }
+    return targetLoc;
+  };
+
+  // --- 1. [TỐI ƯU HÓA] LOAD USER & REPORTS & TASKS SONG SONG ---
   useEffect(() => {
     const initMapData = async () => {
       setIsLoading(true);
-      console.log("🚀 Bắt đầu initMapData...");
+      console.log("🚀 Bắt đầu initMapData (Optimized)...");
       
       const API_BASE = "http://localhost:5075/api";
       
-      // 1. Sync User
       let freshUser = currentUser;
       if (currentUser && (currentUser.id || currentUser.userId)) {
         try {
@@ -165,14 +193,12 @@ const MapPage = () => {
         } catch (err) {}
       }
 
-      // 2. Load Reports (Accepted, InProcess, CancelPending, AND Pending)
       try {
-        console.log("📡 Đang gọi API lấy danh sách Reports...");
+        console.log("📡 Đang gọi API Reports...");
         const [resAccepted, resInProcess, resCancelPending, resPending] = await Promise.all([
             axios.get(`${API_BASE}/reports/status/Accepted`).catch(() => ({ data: [] })),
             axios.get(`${API_BASE}/reports/status/InProcess`).catch(() => ({ data: [] })),
             axios.get(`${API_BASE}/reports/status/CancelPending`).catch(() => ({ data: [] })),
-            // [MỚI] Gọi thêm API Pending để hiển thị đơn chờ duyệt
             axios.get(`${API_BASE}/reports/status/Pending`).catch(() => ({ data: [] }))
         ]);
 
@@ -180,89 +206,78 @@ const MapPage = () => {
             ...(resAccepted.data || []), 
             ...(resInProcess.data || []),
             ...(resCancelPending.data || []),
-            ...(resPending.data || []) // [MỚI] Gộp đơn pending vào
+            ...(resPending.data || [])
         ];
         
         console.log(`✅ Đã tải ${rawReports.length} reports.`);
 
-        const processedReports = [];
-        
-        for (const report of rawReports) {
-          if (report.status === "Completed") continue;
-          
-          const reportId = report.reportId || report.id;
+        const reportPromises = rawReports.map(async (report) => {
+            if (report.status === "Completed") return null;
 
-          // 🔥 1. GỌI API GET TASK
-          let task = null;
-          try {
-            const taskRes = await axios.get(`${API_BASE}/reports/tasks/gettask/${reportId}`);
-            if (taskRes.data) {
-                if (Array.isArray(taskRes.data) && taskRes.data.length > 0) {
-                    task = taskRes.data[0];
-                } else if (!Array.isArray(taskRes.data)) {
-                    task = taskRes.data;
+            const reportId = report.reportId || report.id;
+            let task = null;
+            let location = null;
+
+            const [taskRes, geoData] = await Promise.all([
+                axios.get(`${API_BASE}/reports/tasks/gettask/${reportId}`).catch(() => null),
+                report.address ? fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(report.address)}&limit=1`).then(r => r.json()).catch(() => null) : Promise.resolve(null)
+            ]);
+
+            if (taskRes && taskRes.data) {
+                if (Array.isArray(taskRes.data) && taskRes.data.length > 0) task = taskRes.data[0];
+                else if (!Array.isArray(taskRes.data)) task = taskRes.data;
+            }
+
+            if (geoData && geoData.length > 0) {
+                location = [parseFloat(geoData[0].lat), parseFloat(geoData[0].lon)];
+            }
+
+            if (!location) return null;
+
+            let displayStatus = report.status ? report.status.toLowerCase() : "pending";
+            let rescuerName = null;
+            let rescuerPhone = null;
+            let rescuerLocation = null;
+            let taskId = null;
+            let rescuerId = null;
+            let cancelReason = null;
+
+            if (task && task.id) {
+                taskId = task.id;
+                if (task.status === "in_progress") displayStatus = "in_progress";
+                if (task.status === "pending_to_cancel") {
+                    displayStatus = "pending-to-cancel";
+                    cancelReason = task.note || "Đang chờ duyệt hủy";
+                }
+                if (task.status === "completed") return null;
+
+                rescuerId = task.volunteerId;
+                rescuerName = task.volunteerName;
+                rescuerLocation = task.volunteerLocation;
+                rescuerPhone = task.volunteerPhone; 
+                
+                if (freshUser && (freshUser.id === rescuerId || freshUser.userId === rescuerId)) {
+                    if (!rescuerPhone) rescuerPhone = freshUser.phone;
                 }
             }
-          } catch (e) {}
 
-          // 🔥 2. GEOCODE
-          let location = null;
-          if (report.address) {
-            try {
-              const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(report.address)}&limit=1`);
-              const geoData = await geoRes.json();
-              if (geoData?.length) location = [parseFloat(geoData[0].lat), parseFloat(geoData[0].lon)];
-            } catch {}
-          }
-          
-          if (!location) continue; 
+            return {
+                id: reportId, reportId, taskId,
+                name: report.name, phone: report.phone, address: report.address, location,
+                type: report.level, description: report.details,
+                status: displayStatus, 
+                rescuerId, rescuerName, rescuerPhone, rescuerLocation, cancelReason
+            };
+        });
 
-          // Mặc định hiển thị theo status trả về từ API Report
-          let displayStatus = report.status ? report.status.toLowerCase() : "pending";
-          
-          let rescuerName = null;
-          let rescuerPhone = null;
-          let rescuerLocation = null;
-          let taskId = null;
-          let rescuerId = null;
-          let cancelReason = null;
+        const processedResults = await Promise.all(reportPromises);
+        const finalReports = processedResults.filter(r => r !== null);
 
-          // 🔥 MAPPING DỮ LIỆU TASK VÀO REPORT
-          if (task && task.id) {
-            taskId = task.id;
-            
-            if (task.status === "in_progress") displayStatus = "in_progress";
-            if (task.status === "pending_to_cancel") {
-                displayStatus = "pending-to-cancel";
-                cancelReason = task.note || "Đang chờ duyệt hủy";
-            }
-            if (task.status === "completed") continue;
-
-            rescuerId = task.volunteerId;
-            rescuerName = task.volunteerName;
-            rescuerLocation = task.volunteerLocation;
-            rescuerPhone = task.volunteerPhone; 
-            
-            if (freshUser && (freshUser.id === rescuerId || freshUser.userId === rescuerId)) {
-                if (!rescuerPhone) rescuerPhone = freshUser.phone;
-            }
-          }
-          
-          processedReports.push({
-            id: reportId, reportId, taskId,
-            name: report.name, phone: report.phone, address: report.address, location,
-            type: report.level, description: report.details,
-            status: displayStatus, 
-            rescuerId, 
-            rescuerName, rescuerPhone, rescuerLocation, cancelReason
-          });
-        }
-
-        setRequests(processedReports);
-        localStorage.setItem("RELIEF_REQUESTS_STATE", JSON.stringify(processedReports));
+        setRequests(finalReports);
+        localStorage.setItem("RELIEF_REQUESTS_STATE", JSON.stringify(finalReports));
 
       } catch (err) {
-        console.error("❌ Lỗi CRITICAL trong initMapData:", err);
+        console.error("❌ Lỗi trong initMapData:", err);
       } finally {
         setIsLoading(false);
       }
@@ -274,23 +289,36 @@ const MapPage = () => {
   // --- LOGIC LOAD RELIEF POINTS ---
   useEffect(() => {
     const fetchReliefPoints = async () => {
-      const storedPoints = localStorage.getItem("RELIEF_POINTS");
-      if (storedPoints) {
-        const points = JSON.parse(storedPoints);
-        const pointsWithCoords = await Promise.all(
-          points.map(async (p) => {
-            if (!p.location && p.address) {
-              try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(p.address)}&limit=1`);
-                const data = await res.json();
-                if (data && data.length > 0) return { ...p, location: [parseFloat(data[0].lat), parseFloat(data[0].lon)] };
-              } catch (e) {}
-            }
-            return p;
-          })
-        );
-        setReliefPoints(pointsWithCoords);
-      }
+        try {
+            const API_BASE = "http://localhost:5075/api";
+            const [resActive, resInactive, resFull] = await Promise.all([
+                axios.get(`${API_BASE}/safety/get-by-status/Active`).catch(() => ({ data: [] })),
+                axios.get(`${API_BASE}/safety/get-by-status/Inactive`).catch(() => ({ data: [] })),
+                axios.get(`${API_BASE}/safety/get-by-status/Full`).catch(() => ({ data: [] }))
+            ]);
+
+            const allPointsData = [...(resActive.data || []), ...(resInactive.data || []), ...(resFull.data || [])];
+
+            const pointsWithCoords = await Promise.all(
+                allPointsData.map(async (p) => {
+                    if (!p.location && p.address) {
+                        try {
+                            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(p.address)}&limit=1`);
+                            const data = await res.json();
+                            if (data && data.length > 0) return { ...p, location: [parseFloat(data[0].lat), parseFloat(data[0].lon)] };
+                        } catch (e) {}
+                    } else if (p.latitude && p.longitude) {
+                        return { ...p, location: [p.latitude, p.longitude] };
+                    }
+                    return p;
+                })
+            );
+            
+            setReliefPoints(pointsWithCoords);
+            localStorage.setItem("RELIEF_POINTS", JSON.stringify(pointsWithCoords));
+        } catch (e) {
+            console.error("Lỗi fetch relief points:", e);
+        }
     };
     fetchReliefPoints();
   }, []);
@@ -319,7 +347,7 @@ const MapPage = () => {
     fetchApiProvinces();
   }, []);
 
-  // --- HANDLERS ---
+  // --- HANDLERS (Giữ nguyên) ---
   const handleAcceptSupport = async (request) => {
     if (!currentUser || currentUser.role !== "volunteer") return;
     if (!currentUser.location) {
@@ -410,106 +438,43 @@ const MapPage = () => {
     } catch (error) { console.error("Lỗi:", error); alert("Gửi yêu cầu hủy thất bại."); } finally { setIsLoading(false); }
   };
 
-const handleAddressInputChange = (e) => {
-  setNewAddressInput(e.target.value);
-};
-const handleSearchAddress = async () => {
-  const value = newAddressInput.trim();
-  if (!value || value.length < 5) return;
-
-  try {
-    setIsLoading(true);
-
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        value
-      )}&addressdetails=1&limit=5&countrycodes=vn`
-    );
-
-    const data = await res.json();
-    setSuggestions(data);
-    setShowSuggestions(true);
-  } catch (err) {
-    console.error(err);
-  } finally {
-    setIsLoading(false);
-  }
-};
-const handleKeyDown = (e) => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    handleSearchAddress();
-  }
-};
-
+  const handleAddressInputChange = (e) => { setNewAddressInput(e.target.value); };
+  const handleSearchAddress = async () => {
+    const value = newAddressInput.trim();
+    if (!value || value.length < 5) return;
+    try {
+      setIsLoading(true);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&addressdetails=1&limit=5&countrycodes=vn`);
+      const data = await res.json();
+      setSuggestions(data);
+      setShowSuggestions(true);
+    } catch (err) { console.error(err); } finally { setIsLoading(false); }
+  };
+  const handleKeyDown = (e) => { if (e.key === "Enter") { e.preventDefault(); handleSearchAddress(); } };
   const handleSelectSuggestion = (item) => { setNewAddressInput(item.display_name); setShowSuggestions(false); };
   
-const handleUpdateAddress = async () => {
-  if (!newAddressInput.trim()) return;
+  const handleUpdateAddress = async () => {
+    if (!newAddressInput.trim()) return;
+    setIsLoading(true);
+    try {
+      const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newAddressInput)}&limit=1`);
+      const geoData = await geoRes.json();
+      if (!geoData || geoData.length === 0) { alert("Không tìm thấy vị trí"); return; }
+      const newCoords = [parseFloat(geoData[0].lat), parseFloat(geoData[0].lon)];
+      const displayAddress = geoData[0].display_name;
+      
+      await fetch(`http://localhost:5075/api/user/${currentUser.id}/address`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(displayAddress) });
+      
+      const updatedUser = { ...currentUser, address: displayAddress, location: newCoords };
+      setCurrentUser(updatedUser);
+      localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+      setManualPosition(newCoords);
+      localStorage.setItem("MANUAL_POSITION", JSON.stringify(newCoords));
+      alert("Đã cập nhật vị trí thành công!");
+      setShowUpdateAddressModal(false);
+    } catch (error) { console.error(error); alert("Có lỗi khi cập nhật địa chỉ"); } finally { setIsLoading(false); }
+  };
 
-  setIsLoading(true);
-
-  try {
-    // 1️⃣ Gọi Nominatim để lấy tọa độ
-    const geoRes = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newAddressInput)}&limit=1`
-    );
-    const geoData = await geoRes.json();
-
-    if (!geoData || geoData.length === 0) {
-      alert("Không tìm thấy vị trí");
-      return;
-    }
-
-    const newCoords = [
-      parseFloat(geoData[0].lat),
-      parseFloat(geoData[0].lon),
-    ];
-
-    const displayAddress = geoData[0].display_name;
-
-    // 2️⃣ GỌI API BACKEND để update địa chỉ
-    const apiRes = await fetch(
-      `http://localhost:5075/api/user/${currentUser.id}/address`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(displayAddress), // ⚠️ string thuần
-      }
-    );
-
-    if (!apiRes.ok) {
-      throw new Error("Update address failed");
-    }
-
-    // 3️⃣ Update state + localStorage
-    const updatedUser = {
-      ...currentUser,
-      address: displayAddress,
-      location: newCoords,
-    };
-
-    setCurrentUser(updatedUser);
-    localStorage.setItem("currentUser", JSON.stringify(updatedUser));
-
-    setManualPosition(newCoords);
-    localStorage.setItem("MANUAL_POSITION", JSON.stringify(newCoords));
-
-    alert("Đã cập nhật vị trí thành công!");
-    setShowUpdateAddressModal(false);
-
-  } catch (error) {
-    console.error(error);
-    alert("Có lỗi khi cập nhật địa chỉ");
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-
-  // --- [MỚI] TẠO YÊU CẦU CỨU TRỢ & HIỂN THỊ NGAY ---
   const handleCreateRequest = async () => { 
     if (!currentUser) { alert("Vui lòng đăng nhập."); return; }
     if (!currentUser.address) { alert("Vui lòng cập nhật vị trí/địa chỉ của bạn trước khi gửi yêu cầu."); return; }
@@ -531,7 +496,6 @@ const handleUpdateAddress = async () => {
 
       alert("✅ Đã gửi tín hiệu SOS thành công! Vui lòng chờ Admin duyệt.");
       
-      // Tạo object report tạm thời để hiển thị ngay lập tức
       const newReport = {
         id: res.data.id || Date.now(), 
         reportId: res.data.id || Date.now(),
@@ -539,10 +503,10 @@ const handleUpdateAddress = async () => {
         name: currentUser.fullName || currentUser.name,
         phone: currentUser.phone,
         address: currentUser.address,
-        location: currentUser.location, // Dùng vị trí hiện tại của user
+        location: currentUser.location, 
         type: reqType,
         description: reqDesc,
-        status: "pending", // 🔥 Quan trọng: đặt status là pending
+        status: "pending", 
         rescuerId: null,
         rescuerName: null
       };
@@ -553,7 +517,6 @@ const handleUpdateAddress = async () => {
 
       setShowRequestForm(false); 
       setReqDesc("");
-      // Không cần window.location.reload() nữa
 
     } catch (error) { 
       console.error("Lỗi tạo yêu cầu:", error); 
@@ -576,6 +539,30 @@ const handleUpdateAddress = async () => {
       <button onClick={() => navigate("/home")} style={{ position: "absolute", top: "20px", left: "60px", zIndex: 1000, padding: "10px 20px", backgroundColor: "white", border: "none", borderRadius: "8px", boxShadow: "0 2px 10px rgba(0,0,0,0.2)", cursor: "pointer", fontWeight: "bold", color: "#333" }}>⬅ Quay lại</button>
       {currentUser?.role === "volunteer-pending" && <div style={{ position: "absolute", top: 0, left: 0, width: "100%", background: "rgba(255, 165, 0, 0.9)", color: "white", textAlign: "center", padding: "5px", zIndex: 2000, fontWeight: "bold" }}>⚠️ Tài khoản Tình nguyện viên đang chờ duyệt.</div>}
       
+      {/* --- [MỚI] NÚT ẨN/HIỆN ĐIỂM AN TOÀN --- */}
+      <button 
+        onClick={() => setShowReliefPoints(!showReliefPoints)} 
+        style={{
+            position: "absolute", 
+            bottom: "20px", 
+            left: "20px", 
+            zIndex: 1000, 
+            padding: "10px 15px", 
+            backgroundColor: showReliefPoints ? "#15803d" : "white", 
+            color: showReliefPoints ? "white" : "#333",
+            border: "1px solid #ddd", 
+            borderRadius: "8px", 
+            boxShadow: "0 2px 10px rgba(0,0,0,0.2)", 
+            cursor: "pointer", 
+            fontWeight: "bold",
+            display: "flex",
+            alignItems: "center",
+            gap: "5px"
+        }}
+      >
+        {showReliefPoints ? "👁️ Đang hiện Điểm an toàn" : "👁️‍🗨️ Hiện Điểm an toàn"}
+      </button>
+
       {currentUser && (
         <div className="lst-btn-rescuee" style={{ position: "absolute", top: "20px", left: "200px", zIndex: 1000, display: "flex", gap: "10px" }}>
           {isCitizenFunc && <button onClick={() => setShowRequestForm(true)} style={{ padding: "10px 20px", backgroundColor: "#dc2626", color: "white", border: "none", borderRadius: "8px", boxShadow: "0 2px 10px rgba(0,0,0,0.2)", cursor: "pointer", fontWeight: "bold" }}>🆘 Gửi tín hiệu SOS</button>}
@@ -591,14 +578,13 @@ const handleUpdateAddress = async () => {
         
         {currentUser && currentUser.location && <Marker position={currentUser.location} icon={isVolunteerFunc ? blueIcon : redIcon} opacity={0.6} zIndexOffset={-100}><Popup>Vị trí của bạn</Popup></Marker>}
         
+        {/* RENDER REQUESTS MARKER (Giữ nguyên) */}
         {requests.map((req) => {
-            // Chuẩn hóa status
             const statusLower = (req.status || "").toLowerCase();
-
             const isAccepted = statusLower === "accepted";
             const isInProgress = statusLower === "in_progress";
             const isPendingCancel = statusLower === "pending-to-cancel" || statusLower === "pendingtocancel";
-            const isPending = statusLower === "pending"; // Trạng thái chờ duyệt
+            const isPending = statusLower === "pending"; 
 
             let isMyTask = false;
             if (currentUser) {
@@ -623,48 +609,28 @@ const handleUpdateAddress = async () => {
                   Lý do: <span style={{ color: "#d9534f", fontWeight: "bold" }}>{req.type}</span><br />
                   Chi tiết: {req.description}<br />
                   Địa chỉ: {req.address}<br />
-                  
                   <div style={{ marginTop: "5px", fontStyle: "italic", color: isPending ? "#d97706" : "#666" }}>
                     Trạng thái: <strong>{statusLabel}</strong>
                   </div>
-                  
                   {isPendingCancel && <div style={{color: "orange", fontSize: "0.9em"}}>Lý do hủy: {req.cancelReason}</div>}
-
                   {isVolunteerFunc && (
                     <div style={{ marginTop: "10px", textAlign: "center" }}>
-                      {/* Chỉ hiện nút nhận cứu khi đã Accepted */}
                       {isAccepted && (
-                        <button onClick={() => handleAcceptSupport(req)} style={{ background: "#007bff", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}>
-                          ✋ Tôi sẽ cứu
-                        </button>
+                        <button onClick={() => handleAcceptSupport(req)} style={{ background: "#007bff", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}>✋ Tôi sẽ cứu</button>
                       )}
-
-                      {/* Các nút điều khiển khi đang thực hiện */}
                       {(isInProgress || isPendingCancel) && isMyTask && (
                         <div style={{ background: "#d1fae5", padding: "5px", borderRadius: "4px" }}>
-                          <button onClick={() => drawRoute(currentUser.location, req.location)} style={{ background: "#3b82f6", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%", marginBottom: "5px" }}>
-                            🗺️ Dẫn đường
-                          </button>
-
+                          <button onClick={() => drawRoute(currentUser.location, req.location)} style={{ background: "#3b82f6", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%", marginBottom: "5px" }}>🗺️ Dẫn đường</button>
                           {!isPendingCancel && (
                             <>
-                              <button onClick={() => handleCompleteSupport(req)} style={{ background: "#059669", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%", marginBottom: "5px" }}>
-                                ✅ Đã xong
-                              </button>
-                              <button onClick={() => handleTriggerCancel(req)} style={{ background: "#dc2626", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}>
-                                ❌ Hủy nhận
-                              </button>
+                              <button onClick={() => handleCompleteSupport(req)} style={{ background: "#059669", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%", marginBottom: "5px" }}>✅ Đã xong</button>
+                              <button onClick={() => handleTriggerCancel(req)} style={{ background: "#dc2626", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", width: "100%" }}>❌ Hủy nhận</button>
                             </>
                           )}
                           {isPendingCancel && <div style={{fontSize: '0.8rem', color: '#d97706'}}>Đang chờ duyệt hủy...</div>}
                         </div>
                       )}
-
-                      {isInProgress && !isMyTask && (
-                        <div style={{ background: "#f3f4f6", padding: "5px", borderRadius: "4px", color: "#6b7280", fontSize: "0.9em" }}>
-                          Đã có TNV khác nhận hỗ trợ.
-                        </div>
-                      )}
+                      {isInProgress && !isMyTask && <div style={{ background: "#f3f4f6", padding: "5px", borderRadius: "4px", color: "#6b7280", fontSize: "0.9em" }}>Đã có TNV khác nhận hỗ trợ.</div>}
                     </div>
                   )}
                 </Popup>
@@ -680,41 +646,29 @@ const handleUpdateAddress = async () => {
           );
         })}
         
-        {reliefPoints.map((point) => { 
+        {/* [MỚI] RENDER RELIEF POINTS CÓ ĐIỀU KIỆN (ẨN/HIỆN) */}
+        {showReliefPoints && reliefPoints.map((point) => { 
             if (!point.location) return null; 
+            const finalPosition = getDisplayPosition(point.location, currentUser?.location);
             return (
-            <Marker key={`point-${point.id}`} position={point.location} icon={greenIcon} zIndexOffset={800}>
+            <Marker key={`point-${point.id}`} position={finalPosition} icon={greenIcon} zIndexOffset={800}>
                 <Tooltip direction="top" offset={[0, -40]} opacity={1}><span>⛺ {point.name}</span></Tooltip>
                 <Popup>
                     <strong>{point.name}</strong><br/>
                     📍 {point.address}<hr style={{ margin: "5px 0" }}/>
                     📦 Hỗ trợ: {point.type}<br/>
-                    <span style={{ color: point.status === "Đang hoạt động" ? "green" : "red", fontWeight: "bold" }}>● {point.status}</span>
+                    <span style={{ color: point.status === "Active" ? "green" : "red", fontWeight: "bold" }}>● {point.status === "Active" ? "Đang hoạt động" : point.status}</span>
                 </Popup>
             </Marker>
             ); 
         })}
+        
         {location.state?.position && <Marker position={location.state.position} icon={blueIcon}><Popup>Vị trí tìm kiếm:<br/><strong>{location.state.name}</strong></Popup></Marker>}
       </MapContainer>
 
       {showRequestForm && <Modal title="Gửi yêu cầu khẩn cấp" onClose={() => setShowRequestForm(false)}><div className="form-group"><label>Bạn cần giúp gì?</label><select value={reqType} onChange={(e) => setReqType(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}><option>Cần lương thực</option><option>Cần thuốc men / Y tế</option><option>Cần sơ tán khẩn cấp</option><option>Cần áo phao / Thuyền</option><option>Khác</option></select></div><div className="form-group"><label>Mô tả chi tiết</label><textarea rows="4" placeholder="Mô tả tình trạng..." value={reqDesc} onChange={(e) => setReqDesc(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}/></div><button className="btn-primary" style={{ backgroundColor: "#dc2626" }} onClick={handleCreateRequest}>Gửi Yêu Cầu</button></Modal>}
       {showCancelModal && <Modal title="Lý do hủy nhiệm vụ" onClose={() => setShowCancelModal(false)}><div className="form-group"><label>Tại sao bạn muốn hủy cứu trợ này?</label><textarea rows="3" placeholder="Nhập lý do..." value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}/></div><button onClick={handleConfirmCancel} className="btn-primary" style={{ backgroundColor: "#dc2626", marginTop: "10px" }}>Xác nhận Hủy</button></Modal>}
-      {showUpdateAddressModal && (<Modal title="Cập nhật Vị trí Hiện tại" onClose={() => setShowUpdateAddressModal(false)}><p style={{ color: "#dc2626", marginBottom: "10px" }}>⚠️ <strong>Lưu ý:</strong> Nhập địa chỉ chi tiết để định vị chính xác!</p><div className="form-group" ref={wrapperRef}><label>Địa chỉ hiện tại của bạn:</label><div className="address-input-container"><input
-        type="text"
-        placeholder="Nhập địa chỉ..."
-        value={newAddressInput}
-        onChange={handleAddressInputChange}
-        onKeyDown={handleKeyDown}
-        onFocus={() => newAddressInput && setShowSuggestions(true)}
-        style={{
-          width: "100%",
-          padding: "10px",
-          borderRadius: "5px",
-          border: "1px solid #ddd",
-        }}
-        autoComplete="off"
-      />
-{showSuggestions && suggestions.length > 0 && (<div className="suggestions-dropdown">{suggestions.map((item, index) => (<div key={index} className="suggestion-item" onClick={() => handleSelectSuggestion(item)}><span style={{ fontSize: "1.2rem" }}>📍</span><span className="suggestion-text">{item.display_name}</span></div>))}</div>)}</div></div><button onClick={handleUpdateAddress} className="btn-primary" disabled={isLoading} style={{ backgroundColor: "#007bff", marginTop: "10px" }}>{isLoading ? "Đang định vị..." : "Cập nhật Vị trí"}</button></Modal>)}
+      {showUpdateAddressModal && (<Modal title="Cập nhật Vị trí Hiện tại" onClose={() => setShowUpdateAddressModal(false)}><p style={{ color: "#dc2626", marginBottom: "10px" }}>⚠️ <strong>Lưu ý:</strong> Nhập địa chỉ chi tiết để định vị chính xác!</p><div className="form-group" ref={wrapperRef}><label>Địa chỉ hiện tại của bạn:</label><div className="address-input-container"><input type="text" placeholder="Nhập địa chỉ..." value={newAddressInput} onChange={handleAddressInputChange} onKeyDown={handleKeyDown} onFocus={() => newAddressInput && setShowSuggestions(true)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }} autoComplete="off" />{showSuggestions && suggestions.length > 0 && (<div className="suggestions-dropdown">{suggestions.map((item, index) => (<div key={index} className="suggestion-item" onClick={() => handleSelectSuggestion(item)}><span style={{ fontSize: "1.2rem" }}>📍</span><span className="suggestion-text">{item.display_name}</span></div>))}</div>)}</div></div><button onClick={handleUpdateAddress} className="btn-primary" disabled={isLoading} style={{ backgroundColor: "#007bff", marginTop: "10px" }}>{isLoading ? "Đang định vị..." : "Cập nhật Vị trí"}</button></Modal>)}
     </div>
   );
 };
