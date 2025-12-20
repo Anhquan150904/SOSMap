@@ -22,8 +22,7 @@ const HomePage = () => {
 
   // State Header & Loading
   const [provinces, setProvinces] = useState([]);
-  // [FIX] Mặc định là Hà Nội để API không bị lỗi khi vào trang
-  const [currentProvince, setCurrentProvince] = useState({ name: "Hà Nội" }); 
+  const [currentProvince, setCurrentProvince] = useState({ name: "Toàn quốc" }); 
   const [showLocaDropdown, setShowLocaDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -43,7 +42,7 @@ const HomePage = () => {
   const [newPointName, setNewPointName] = useState("");
   const [newPointAddress, setNewPointAddress] = useState("");
   const [newPointType, setNewPointType] = useState("Thực phẩm, Nước sạch");
-  const [newPointStatus, setNewPointStatus] = useState("Đang hoạt động");
+  const [newPointStatus, setNewPointStatus] = useState("Active"); // Mặc định là Active (tiếng Anh)
 
   // Autocomplete
   const [suggestions, setSuggestions] = useState([]);
@@ -53,21 +52,46 @@ const HomePage = () => {
   const wrapperRef = useRef(null);
   const pointWrapperRef = useRef(null);
 
-  // --- [FIX API] HÀM LẤY ĐIỂM CỨU TRỢ THEO TỈNH ---
-  const fetchReliefPoints = async (provinceName) => {
+  // --- [FIX] HÀM LẤY ĐIỂM CỨU TRỢ TOÀN QUỐC ---
+  const fetchReliefPoints = async () => {
     try {
-        // Encode tên tỉnh để xử lý tiếng Việt (VD: "Hà Nội" -> "H%C3%A0%20N%E1%BB%99i")
-        const safeProvince = encodeURIComponent(provinceName);
-        console.log(`📡 Đang tải điểm cứu trợ tại: ${provinceName}...`);
+        console.log(`📡 Đang tải điểm cứu trợ toàn quốc...`);
         
-        // Dùng đúng API trong Swagger: /api/safety/nearby/{province}
-        const res = await axios.get(`${API_BASE}/safety/nearby/${safeProvince}`);
+        // Gọi song song 3 API
+        const [resActive, resInactive, resFull] = await Promise.all([
+            axios.get(`${API_BASE}/safety/get-by-status/Active`).catch(() => ({ data: [] })),
+            axios.get(`${API_BASE}/safety/get-by-status/Inactive`).catch(() => ({ data: [] })),
+            axios.get(`${API_BASE}/safety/get-by-status/Full`).catch(() => ({ data: [] }))
+        ]);
+
+        // Gộp mảng thô
+        const rawPoints = [
+            ...(resActive.data || []),
+            ...(resInactive.data || []),
+            ...(resFull.data || [])
+        ];
+
+        // --- LỌC TRÙNG LẶP (Dựa trên ID) ---
+        const uniquePointsMap = new Map();
+        rawPoints.forEach(point => {
+            if (point.id && !uniquePointsMap.has(point.id)) {
+                uniquePointsMap.set(point.id, point);
+            }
+        });
         
-        setReliefPoints(res.data || []);
-        localStorage.setItem("RELIEF_POINTS", JSON.stringify(res.data || []));
+        // Chuyển Map về mảng
+        const uniquePoints = Array.from(uniquePointsMap.values());
+
+        // Sắp xếp ID giảm dần (mới nhất lên đầu)
+        const sortedPoints = uniquePoints.sort((a, b) => (b.id || 0) - (a.id || 0));
+
+        console.log(`✅ Đã tải ${sortedPoints.length} điểm an toàn (đã lọc trùng).`);
+        setReliefPoints(sortedPoints);
+        localStorage.setItem("RELIEF_POINTS", JSON.stringify(sortedPoints));
+        
     } catch (error) {
         console.error("❌ Lỗi lấy điểm cứu trợ:", error);
-        // Fallback: Lấy từ localStorage nếu API lỗi để không trống trơn
+        // Fallback
         const storedPoints = localStorage.getItem("RELIEF_POINTS");
         if (storedPoints) setReliefPoints(JSON.parse(storedPoints));
     }
@@ -96,8 +120,8 @@ const HomePage = () => {
       }
     };
 
-    // [FIX] Gọi API lần đầu với tỉnh mặc định (Hà Nội)
-    fetchReliefPoints("Hà Nội");
+    // Gọi hàm lấy dữ liệu toàn quốc ngay khi vào trang
+    fetchReliefPoints();
     syncUserData();
   }, []);
 
@@ -182,17 +206,18 @@ const HomePage = () => {
   
   const handleSelectSuggestion = (item) => { if (activeAutocomplete === "sos") setReqAddress(item.display_name); else if (activeAutocomplete === "point") setNewPointAddress(item.display_name); setShowSuggestions(false); setActiveAutocomplete(null); };
   
-  const resetPointForm = () => { setNewPointName(""); setNewPointAddress(""); setNewPointType("Thực phẩm, Nước sạch"); setNewPointStatus("Đang hoạt động"); setEditingPoint(null); };
+  const resetPointForm = () => { setNewPointName(""); setNewPointAddress(""); setNewPointType("Thực phẩm, Nước sạch"); setNewPointStatus("Active"); setEditingPoint(null); };
   const openAddModal = () => { resetPointForm(); setShowAddPointModal(true); };
   
-  const openEditModal = (point) => { setEditingPoint(point); setNewPointName(point.name); setNewPointAddress(point.address); setNewPointType(point.type); setNewPointStatus(point.status); setShowAddPointModal(true); };
+  const openEditModal = (point) => { setEditingPoint(point); setNewPointName(point.name); setNewPointAddress(point.address); setNewPointType(point.type); setNewPointStatus(point.status === "Đang hoạt động" ? "Active" : point.status); setShowAddPointModal(true); };
 
-  // --- LOGIC LƯU ĐIỂM CỨU TRỢ ---
+  // --- [FIX] LOGIC LƯU ĐIỂM CỨU TRỢ (TOÀN QUỐC & SỬA LỖI 500) ---
   const handleSavePoint = async () => {
     if (!newPointName || !newPointAddress) { alert("Vui lòng nhập đủ thông tin!"); return; }
     
     setIsLoading(true);
     try {
+        // 1. Geocoding
         let coords = [0, 0];
         try {
             const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newPointAddress)}&limit=1`);
@@ -205,56 +230,54 @@ const HomePage = () => {
         const token = localStorage.getItem("accessToken");
         const config = { headers: { Authorization: `Bearer ${token}` } };
         
+        // Chuẩn bị payload chuẩn xác cho Backend .NET
         const payload = {
             name: newPointName,
             address: newPointAddress,
             type: newPointType,
-            status: newPointStatus,
+            status: newPointStatus, // Gửi "Active" hoặc "Inactive" (tiếng Anh)
             latitude: coords[0],
             longitude: coords[1],
             description: "Thêm từ trang chủ" 
         };
 
         if (editingPoint) {
-            // API PUT (Giả định, nếu chưa có thì cần thêm vào backend)
-            await axios.put(`${API_BASE}/safety/safetypoint/${editingPoint.id}`, payload, config);
-            
-            const updatedPoints = reliefPoints.map((p) => p.id === editingPoint.id ? { ...p, ...payload, location: coords } : p);
-            setReliefPoints(updatedPoints);
-            alert("✅ Đã cập nhật!");
+            // [PUT] Update
+            await axios.put(`${API_BASE}/safety/safetypoint/${editingPoint.id}/update`, payload, config);
+            alert("✅ Đã cập nhật điểm an toàn!");
         } else {
-            // API POST (Đã có trong Swagger)
-            const res = await axios.post(`${API_BASE}/safety/safetypoint/create`, payload, config);
-            
-            const newPoint = res.data || { ...payload, id: Date.now(), location: coords }; 
-            const updatedPoints = [...reliefPoints, newPoint];
-            setReliefPoints(updatedPoints);
-            alert("✅ Đã thêm mới!");
+            // [POST] Create
+            await axios.post(`${API_BASE}/safety/safetypoint/create`, payload, config);
+            alert("✅ Đã thêm mới điểm an toàn!");
         }
+        
         setShowAddPointModal(false);
         resetPointForm();
+        fetchReliefPoints(); // Load lại danh sách toàn quốc
+
     } catch (error) {
         console.error("Lỗi lưu điểm:", error);
-        alert(`❌ Có lỗi: ${error.response?.data?.message || error.message}`);
+        const msg = error.response?.data?.message || error.message;
+        alert(`❌ Có lỗi: ${msg} (Vui lòng kiểm tra lại dữ liệu nhập)`);
     } finally {
         setIsLoading(false);
     }
   };
 
+  // --- LOGIC XÓA ĐIỂM ---
   const handleDeletePoint = async (id) => {
-    if (!window.confirm("Xóa điểm này?")) return;
+    if (!window.confirm("Bạn chắc chắn muốn xóa điểm này?")) return;
     setIsLoading(true);
     try {
         const token = localStorage.getItem("accessToken");
-        // API DELETE (Giả định)
-        await axios.delete(`${API_BASE}/safety/safetypoint/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        await axios.delete(`${API_BASE}/safety/safetypoint/${id}/delete`, { headers: { Authorization: `Bearer ${token}` } });
         
         const updatedPoints = reliefPoints.filter((p) => p.id !== id);
         setReliefPoints(updatedPoints);
-        alert("🗑️ Đã xóa điểm cứu trợ.");
+        alert("🗑️ Đã xóa điểm an toàn.");
     } catch (error) {
         console.error("Lỗi xóa điểm:", error);
-        alert("❌ Xóa thất bại (API chưa hỗ trợ hoặc lỗi mạng).");
+        alert("❌ Xóa thất bại. Vui lòng thử lại.");
     } finally {
         setIsLoading(false);
     }
@@ -264,32 +287,23 @@ const HomePage = () => {
   
   const handleCreateRequest = async () => { if (!user) { alert("Vui lòng đăng nhập."); return; } if (!reqAddress.trim()) { alert("Vui lòng nhập địa chỉ."); return; } setIsSubmitting(true); try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(reqAddress)}&limit=1`); const data = await res.json(); let finalLocation = user.location; let finalAddress = reqAddress; if (data && data.length > 0) { finalLocation = [parseFloat(data[0].lat), parseFloat(data[0].lon)]; finalAddress = data[0].display_name; } else { if (!finalLocation) { alert("Không tìm thấy tọa độ."); setIsSubmitting(false); return; } if (!window.confirm("Không tìm thấy tọa độ mới. Dùng vị trí cũ?")) { setIsSubmitting(false); return; } } const requests = JSON.parse(localStorage.getItem("RELIEF_REQUESTS") || "[]"); const newRequest = { id: Date.now(), userId: user.phone, name: user.fullName || user.name, phone: user.phone, address: finalAddress, location: finalLocation, type: reqType, description: reqDesc, status: "pending", timestamp: new Date().toLocaleString(), }; localStorage.setItem("RELIEF_REQUESTS", JSON.stringify([...requests, newRequest])); alert("✅ Gửi thành công!"); setShowRequestForm(false); setReqDesc(""); } catch (error) { alert("Lỗi xử lý."); } finally { setIsSubmitting(false); } };
   
-  // [FIX] Cập nhật hàm chọn tỉnh để reload dữ liệu theo API mới
+  // Xử lý chọn tỉnh (chỉ để điều hướng map, không lọc danh sách nữa vì đã lấy toàn quốc)
   const handleChooseProvince = async (province) => { 
       setCurrentProvince(province); 
       setShowLocaDropdown(false); 
-      
-      // Load lại danh sách điểm an toàn theo tỉnh mới
-      fetchReliefPoints(province.name);
-
-      setIsLoading(true); 
-      try { 
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(province.name + ", Việt Nam")}&format=json&limit=1`); 
-          const data = await res.json(); 
-          // Chỉ lấy dữ liệu để update view nếu cần, nhưng fetchReliefPoints đã lo phần data rồi
-      } catch (error) { } 
-      finally { setIsLoading(false); } 
+      // Chỉ dùng để chuyển hướng map nếu cần, dữ liệu bảng vẫn giữ toàn quốc
   };
 
   return (
     <div className="homepage">
-      {isLoading && <div className="loading-overlay"><div className="spinner"></div><div className="loading-text">Đang tải...</div></div>}
+      {isLoading && <div className="loading-overlay"><div className="spinner"></div><div className="loading-text">Đang xử lý...</div></div>}
 
       <header className="site-header">
         <div className="logo-area">
           <div className="logo-group" onClick={() => navigate("/home")}><span className="logo-icon">🚨</span><span className="logo-text">Cứu Hộ</span></div>
           <div className="box-location">
-            <div className="location-badge" onClick={() => setShowLocaDropdown(!showLocaDropdown)}>{currentProvince ? currentProvince.name : "Chọn tỉnh"} ▾</div>
+            {/* Hiển thị "Toàn quốc" hoặc tỉnh đã chọn */}
+            <div className="location-badge" onClick={() => setShowLocaDropdown(!showLocaDropdown)}>{currentProvince ? currentProvince.name : "Toàn quốc"} ▾</div>
             {showLocaDropdown && <div className="lst-provinces-drop">{provinces.length > 0 ? provinces.map((prov) => (<div key={prov.code} onClick={() => handleChooseProvince(prov)} className="imt-provinces">{prov.name}</div>)) : <div className="imt-provinces">Đang tải...</div>}</div>}
           </div>
         </div>
@@ -327,7 +341,7 @@ const HomePage = () => {
         </div>
         <div className="relief-points-section" style={{ padding: "40px 20px", width: "100%", maxWidth: "1600px", margin: "0 auto" }}>
           <div className="top-bar-table" style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", alignItems: "center" }}>
-              <h2 style={{ color: "#333", margin: 0 }}>Danh Sách Các Điểm Cứu Trợ ({currentProvince?.name || "Toàn quốc"})</h2>
+              <h2 style={{ color: "#333", margin: 0 }}>Danh Sách Các Điểm Cứu Trợ (Toàn Quốc)</h2>
               {canManagePoints && (
                   <button className="btn-add-support" onClick={openAddModal} style={{ backgroundColor: "#15803d", color: "white", border: "none", padding: "10px 20px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "1rem" }}>
                       + Thêm điểm cứu trợ
@@ -336,26 +350,84 @@ const HomePage = () => {
           </div>
           <div style={{ overflowX: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", borderRadius: "10px", border: "1px solid #eee" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white", minWidth: "900px" }}>
-              <thead><tr style={{ backgroundColor: "#f8f9fa", color: "#333", borderBottom: "2px solid #eee" }}><th style={{ padding: "16px", textAlign: "left", fontSize: "0.95rem" }}>Tên Điểm Cứu Trợ</th><th style={{ padding: "16px", textAlign: "left", fontSize: "0.95rem" }}>Địa Chỉ</th><th style={{ padding: "16px", textAlign: "left", fontSize: "0.95rem" }}>Loại Hình Hỗ Trợ</th><th style={{ padding: "16px", textAlign: "center", fontSize: "0.95rem" }}>Trạng Thái</th><th style={{ padding: "16px", textAlign: "center", fontSize: "0.95rem" }}>Hành động</th></tr></thead>
+              <thead>
+                <tr style={{ backgroundColor: "#f8f9fa", color: "#333", borderBottom: "2px solid #eee" }}>
+                  <th style={{ padding: "16px", textAlign: "left", fontSize: "0.95rem", width: "20%" }}>Tên Điểm Cứu Trợ</th>
+                  <th style={{ padding: "16px", textAlign: "left", fontSize: "0.95rem", width: "35%" }}>Địa Chỉ</th>
+                  <th style={{ padding: "16px", textAlign: "left", fontSize: "0.95rem", width: "15%" }}>Loại Hình Hỗ Trợ</th>
+                  {/* Căn giữa tiêu đề cột Trạng thái và Hành động */}
+                  <th style={{ padding: "16px", textAlign: "center", fontSize: "0.95rem", width: "15%" }}>Trạng Thái</th>
+                  <th style={{ padding: "16px", textAlign: "center", fontSize: "0.95rem", width: "15%" }}>Hành động</th>
+                </tr>
+              </thead>
               <tbody>
                 {reliefPoints.length > 0 ? reliefPoints.map((point, index) => (
                     <tr key={point.id} style={{ borderBottom: "1px solid #f0f0f0", backgroundColor: index % 2 === 0 ? "white" : "#fafafa" }}>
-                      <td style={{ padding: "16px", fontWeight: "600", color: "#2d3748" }}>{point.name}</td>
-                      <td style={{ padding: "16px", color: "#4a5568" }}>{point.address}</td>
-                      <td style={{ padding: "16px", color: "#4a5568" }}>{point.type}</td>
-                      <td style={{ padding: "16px", textAlign: "center" }}><span style={{ padding: "6px 12px", borderRadius: "20px", fontSize: "0.8rem", fontWeight: "600", backgroundColor: point.status === "Đang hoạt động" ? "#def7ec" : "#fde8e8", color: point.status === "Đang hoạt động" ? "#03543f" : "#9b1c1c", border: point.status === "Đang hoạt động" ? "1px solid #bcf0da" : "1px solid #fbd5d5" }}>{point.status}</span></td>
-                      <td style={{ padding: "16px", textAlign: "center" }}><div style={{ display: "flex", justifyContent: "center", gap: "8px" }}><button onClick={() => handleViewOnMap(point)} style={{ cursor: "pointer", border: "1px solid #3b82f6", background: "white", color: "#3b82f6", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Xem vị trí</button>
-                      {canManagePoints && <><button onClick={() => openEditModal(point)} style={{ cursor: "pointer", border: "1px solid #f59e0b", background: "white", color: "#f59e0b", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Sửa</button><button onClick={() => handleDeletePoint(point.id)} style={{ cursor: "pointer", border: "1px solid #ef4444", background: "white", color: "#ef4444", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Xóa</button></>}</div></td>
+                      <td style={{ padding: "16px", fontWeight: "600", color: "#2d3748", verticalAlign: "middle" }}>{point.name}</td>
+                      <td style={{ padding: "16px", color: "#4a5568", verticalAlign: "middle" }}>{point.address}</td>
+                      <td style={{ padding: "16px", color: "#4a5568", verticalAlign: "middle" }}>{point.type}</td>
+                      
+                      {/* Căn giữa nội dung cột Trạng thái */}
+                      <td style={{ padding: "16px", textAlign: "center", verticalAlign: "middle" }}>
+                          <span style={{ 
+                              display: "inline-block",
+                              padding: "6px 12px", 
+                              borderRadius: "20px", 
+                              fontSize: "0.8rem", 
+                              fontWeight: "600", 
+                              whiteSpace: "nowrap",
+                              // Logic màu sắc: Active (Xanh), Full (Cam/Vàng), Inactive (Xám/Đỏ)
+                              backgroundColor: point.status === "Active" ? "#def7ec" : point.status === "Full" ? "#fef3c7" : "#f3f4f6", 
+                              color: point.status === "Active" ? "#03543f" : point.status === "Full" ? "#b45309" : "#1f2937", 
+                              border: point.status === "Active" ? "1px solid #bcf0da" : point.status === "Full" ? "1px solid #fcd34d" : "1px solid #e5e7eb",
+                          }}>
+                              {/* Hiển thị tên tiếng Việt tương ứng */}
+                              {point.status === "Active" ? "Đang hoạt động" : point.status === "Full" ? "Đầy chỗ" : "Tạm ngưng"}
+                          </span>
+                      </td> 
+
+                      {/* Căn giữa nội dung cột Hành động */}
+                      <td style={{ padding: "16px", textAlign: "center", verticalAlign: "middle" }}>
+                          <div style={{ display: "flex", justifyContent: "center", gap: "8px", alignItems: "center" }}>
+                              <button onClick={() => handleViewOnMap(point)} style={{ cursor: "pointer", border: "1px solid #3b82f6", background: "white", color: "#3b82f6", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
+                                  Xem vị trí
+                              </button>
+                              {canManagePoints && (
+                                  <>
+                                      <button onClick={() => openEditModal(point)} style={{ cursor: "pointer", border: "1px solid #f59e0b", background: "white", color: "#f59e0b", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>
+                                          Sửa
+                                      </button>
+                                      <button onClick={() => handleDeletePoint(point.id)} style={{ cursor: "pointer", border: "1px solid #ef4444", background: "white", color: "#ef4444", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>
+                                          Xóa
+                                      </button>
+                                  </>
+                              )}
+                          </div>
+                      </td>
                     </tr>
-                  )) : <tr><td colSpan={canManagePoints ? 5 : 4} style={{ padding: "30px", textAlign: "center", color: "#666", fontStyle: "italic" }}>Chưa có điểm cứu trợ nào ở {currentProvince?.name}.</td></tr>}
+                  )) : (
+                    <tr>
+                        <td colSpan={5} style={{ padding: "40px", textAlign: "center", color: "#666", fontStyle: "italic", fontSize: "1.1rem" }}>
+                            Chưa có điểm cứu trợ nào trên hệ thống.
+                        </td>
+                    </tr>
+                  )}
               </tbody>
             </table>
           </div>
         </div>
       </section>
       <footer className="site-footer"><div className="footer-bottom"><span>© 2025 Cứu Hộ App</span><span>|</span><button onClick={() => window.scrollTo(0, 0)}>Trang chủ</button><span>|</span><button onClick={() => navigate("/map")}>Bản đồ</button></div></footer>
+      
+      {/* MODAL THÊM/SỬA ĐIỂM */}
+      {showAddPointModal && <Modal title={editingPoint ? "Cập nhật Điểm" : "Thêm Điểm Mới"} onClose={() => setShowAddPointModal(false)}>
+        <div className="form-group"><label>Tên điểm <span style={{ color: "red" }}>*</span></label><input type="text" value={newPointName} onChange={(e) => setNewPointName(e.target.value)} style={{ width: "100%", padding: "10px" }} /></div><div className="form-group" ref={pointWrapperRef}><label>Địa chỉ <span style={{ color: "red" }}>*</span></label><div className="address-input-container"><input type="text" value={newPointAddress} onChange={handlePointAddressChange} onFocus={() => newPointAddress && setActiveAutocomplete("point") && setShowSuggestions(true)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #007bff" }} autoComplete="off" />{showSuggestions && activeAutocomplete === "point" && suggestions.length > 0 && (<div className="suggestions-dropdown">{suggestions.map((item, index) => (<div key={index} className="suggestion-item" onClick={() => handleSelectSuggestion(item)}><span style={{ fontSize: "1.2rem" }}>📍</span><span className="suggestion-text">{item.display_name}</span></div>))}</div>)}</div></div><div className="form-group"><label>Loại hình</label><input type="text" value={newPointType} onChange={(e) => setNewPointType(e.target.value)} style={{ width: "100%", padding: "10px" }} /></div><div className="form-group"><label>Trạng thái</label><select value={newPointStatus} onChange={(e) => setNewPointStatus(e.target.value)} style={{ width: "100%", padding: "10px" }}>
+          <option value="Active">Đang hoạt động</option>
+          <option value="Inactive">Tạm ngưng</option>
+          <option value="Full">Đầy chỗ</option></select></div><div style={{ display: "flex", gap: "10px", marginTop: "10px" }}><button className="btn-primary" onClick={handleSavePoint} style={{ backgroundColor: "#15803d", flex: 1 }}>{editingPoint ? "Lưu" : "Thêm"}</button><button onClick={() => { setShowAddPointModal(false); resetPointForm(); }} style={{ backgroundColor: "#666", color: "white", padding: "10px", borderRadius: "5px", border: "none" }}>Hủy</button></div></Modal>}
+      
+      {/* MODAL SOS */}
       {showRequestForm && <Modal title="Gửi yêu cầu khẩn cấp" onClose={() => setShowRequestForm(false)}><div className="form-group"><label>Bạn cần giúp gì?</label><select value={reqType} onChange={(e) => setReqType(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ddd" }}><option>Cần lương thực</option><option>Cần thuốc men / Y tế</option><option>Cần sơ tán khẩn cấp</option><option>Cần áo phao / Thuyền</option><option>Khác</option></select></div><div className="form-group" ref={wrapperRef}><label>Địa chỉ <span style={{ color: "red" }}>*</span></label><div className="address-input-container"><input type="text" value={reqAddress} onChange={handleReqAddressChange} onFocus={() => reqAddress && setActiveAutocomplete("sos") && setShowSuggestions(true)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #007bff" }} autoComplete="off" />{showSuggestions && activeAutocomplete === "sos" && suggestions.length > 0 && (<div className="suggestions-dropdown">{suggestions.map((item, index) => (<div key={index} className="suggestion-item" onClick={() => handleSelectSuggestion(item)}><span style={{ fontSize: "1.2rem" }}>📍</span><span className="suggestion-text">{item.display_name}</span></div>))}</div>)}</div></div><div className="form-group"><label>Mô tả</label><textarea value={reqDesc} onChange={(e) => setReqDesc(e.target.value)} style={{ width: "100%", padding: "10px" }} /></div><button className="btn-primary" style={{ backgroundColor: "#dc2626", marginTop: "10px" }} onClick={handleCreateRequest} disabled={isSubmitting}>Gửi</button></Modal>}
-      {showAddPointModal && <Modal title={editingPoint ? "Cập nhật Điểm" : "Thêm Điểm Mới"} onClose={() => setShowAddPointModal(false)}><div className="form-group"><label>Tên điểm <span style={{ color: "red" }}>*</span></label><input type="text" value={newPointName} onChange={(e) => setNewPointName(e.target.value)} style={{ width: "100%", padding: "10px" }} /></div><div className="form-group" ref={pointWrapperRef}><label>Địa chỉ <span style={{ color: "red" }}>*</span></label><div className="address-input-container"><input type="text" value={newPointAddress} onChange={handlePointAddressChange} onFocus={() => newPointAddress && setActiveAutocomplete("point") && setShowSuggestions(true)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #007bff" }} autoComplete="off" />{showSuggestions && activeAutocomplete === "point" && suggestions.length > 0 && (<div className="suggestions-dropdown">{suggestions.map((item, index) => (<div key={index} className="suggestion-item" onClick={() => handleSelectSuggestion(item)}><span style={{ fontSize: "1.2rem" }}>📍</span><span className="suggestion-text">{item.display_name}</span></div>))}</div>)}</div></div><div className="form-group"><label>Loại hình</label><input type="text" value={newPointType} onChange={(e) => setNewPointType(e.target.value)} style={{ width: "100%", padding: "10px" }} /></div><div className="form-group"><label>Trạng thái</label><select value={newPointStatus} onChange={(e) => setNewPointStatus(e.target.value)} style={{ width: "100%", padding: "10px" }}><option>Đang hoạt động</option><option>Tạm ngưng</option><option>Đầy chỗ</option></select></div><div style={{ display: "flex", gap: "10px", marginTop: "10px" }}><button className="btn-primary" onClick={handleSavePoint} style={{ backgroundColor: "#15803d", flex: 1 }}>{editingPoint ? "Lưu" : "Thêm"}</button><button onClick={() => { setShowAddPointModal(false); resetPointForm(); }} style={{ backgroundColor: "#666", color: "white", padding: "10px", borderRadius: "5px", border: "none" }}>Hủy</button></div></Modal>}
     </div>
   );
 };

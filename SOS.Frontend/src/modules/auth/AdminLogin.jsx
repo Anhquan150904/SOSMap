@@ -50,7 +50,7 @@ const AdminLogin = () => {
         { headers: { 'Content-Type': 'application/json' } }
       );
       
-      alert(`Đã gửi mã OTP đến ${phone}. (Check Console Server để lấy mã)`);
+      alert(`Đã gửi mã OTP đến ${phone}. (Kiểm tra Console Server để lấy mã)`);
       setStep('INPUT_OTP'); 
 
     } catch (error) {
@@ -61,44 +61,58 @@ const AdminLogin = () => {
     }
   };
 
-  // --- 2. XÁC THỰC ADMIN (CÓ FIX ROLE) ---
+  // --- 2. XÁC THỰC ADMIN (KHÔNG CẦN TOKEN) ---
   const handleVerifyLogin = async () => {
     if (!otp) { alert("Vui lòng nhập mã OTP"); return; }
 
     try {
       setIsLoading(true);
 
-      // Gọi API Verify
-      const res = await axios.post(`${API_BASE}/auth/verify-otp`, {
+      const payload = {
         phone: phone,
         code: otp,
-        fullName: "" 
-      });
+        fullName: "Admin User" 
+      };
 
-      // Lấy dữ liệu user từ response (xử lý cả trường hợp lồng nhau)
-      let userData = res.data.user || res.data;
+      // Gọi API Verify
+      const res = await axios.post(`${API_BASE}/auth/verify-otp`, payload);
+      console.log("📥 Response Login:", res.data);
 
-      console.log("Kết quả đăng nhập (Sau khi fix):", userData);
+      // Lấy dữ liệu user
+      const userData = res.data.user || res.data.currentUser || res.data; 
 
-      // --- KIỂM TRA QUYỀN ADMIN ---
-      if (userData.role !== 'admin') {
+      // Chỉ cần có thông tin User là coi như thành công
+      if (!userData) {
+        alert("⚠️ Lỗi: Server không trả về thông tin người dùng!");
+        setIsLoading(false);
+        return; 
+      }
+
+      // Kiểm tra quyền Admin (Chấp nhận cả 'Admin' và 'admin')
+      const userRole = userData.role ? userData.role.toLowerCase() : "";
+      if (userRole !== 'admin') {
         alert("⛔ LỖI: Tài khoản này không có quyền Admin!");
         setIsLoading(false);
         return;
       }
 
-      // Lưu thông tin vào LocalStorage
-      if (res.data.token) localStorage.setItem('accessToken', res.data.token);
+      // LƯU THÔNG TIN USER (Bỏ qua Token)
       localStorage.setItem('currentUser', JSON.stringify(userData));
-
-      alert(`Chào mừng Admin ${userData.fullName || ""} quay trở lại!`);
       
-      // Chuyển hướng vào trang Dashboard
-      navigate('/admin-dashboard'); 
+      // Nếu có token thì lưu cho vui, không có cũng không sao
+      const token = res.data.token || res.data.accessToken;
+      if (token) localStorage.setItem('accessToken', token);
+      else localStorage.removeItem('accessToken');
+
+      alert(`✅ Đăng nhập thành công! Chào ${userData.fullName || "Admin"}`);
+      
+      // Chuyển hướng sang Dashboard
+      navigate('/admin-dashboard', { replace: true });
 
     } catch (error) {
-      console.error("Lỗi đăng nhập:", error);
-      alert("Mã OTP không đúng hoặc lỗi hệ thống.");
+      console.error("❌ Lỗi đăng nhập:", error);
+      const serverMsg = error.response?.data?.message || error.message;
+      alert(`❌ Đăng nhập thất bại: ${serverMsg}`);
     } finally {
       setIsLoading(false);
     }
