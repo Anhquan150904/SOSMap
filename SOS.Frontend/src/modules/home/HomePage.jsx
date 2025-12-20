@@ -5,6 +5,8 @@ import axios from "axios";
 import Modal from "../../components/Modal";
 import "./HomePage.css";
 
+const API_BASE = "http://localhost:5075/api";
+
 const HomePage = () => {
   const navigate = useNavigate();
   
@@ -20,7 +22,8 @@ const HomePage = () => {
 
   // State Header & Loading
   const [provinces, setProvinces] = useState([]);
-  const [currentProvince, setCurrentProvince] = useState(null);
+  // [FIX] Mặc định là Hà Nội để API không bị lỗi khi vào trang
+  const [currentProvince, setCurrentProvince] = useState({ name: "Hà Nội" }); 
   const [showLocaDropdown, setShowLocaDropdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -31,10 +34,12 @@ const HomePage = () => {
   const [reqAddress, setReqAddress] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Điểm cứu trợ
+  // --- STATE ĐIỂM CỨU TRỢ (RELIEF POINTS) ---
   const [reliefPoints, setReliefPoints] = useState([]);
   const [showAddPointModal, setShowAddPointModal] = useState(false);
   const [editingPoint, setEditingPoint] = useState(null);
+  
+  // State Form Thêm/Sửa Điểm
   const [newPointName, setNewPointName] = useState("");
   const [newPointAddress, setNewPointAddress] = useState("");
   const [newPointType, setNewPointType] = useState("Thực phẩm, Nước sạch");
@@ -48,15 +53,27 @@ const HomePage = () => {
   const wrapperRef = useRef(null);
   const pointWrapperRef = useRef(null);
 
-  const initialReliefPoints = [
-    { id: 1, name: "UBND Phường Yên Hòa", address: "Số 282 Trung Kính, Cầu Giấy, Hà Nội", type: "Thực phẩm, Nước sạch", status: "Đang hoạt động" },
-    { id: 2, name: "Nhà Văn hóa Quận Thanh Xuân", address: "166 Khuất Duy Tiến, Thanh Xuân, Hà Nội", type: "Thuốc men, Y tế", status: "Đang hoạt động" },
-    { id: 3, name: "Trường THPT Chu Văn An", address: "10 Thụy Khuê, Tây Hồ, Hà Nội", type: "Chỗ ở tạm thời", status: "Đầy chỗ" },
-    { id: 4, name: "Trạm Y tế Phường Láng Hạ", address: "105 Láng Hạ, Đống Đa, Hà Nội", type: "Sơ cấp cứu", status: "Đang hoạt động" },
-    { id: 5, name: "Chùa Bằng (Linh Tiên Tự)", address: "63 Bằng Liệt, Hoàng Mai, Hà Nội", type: "Cơm từ thiện", status: "Đang hoạt động" },
-  ];
+  // --- [FIX API] HÀM LẤY ĐIỂM CỨU TRỢ THEO TỈNH ---
+  const fetchReliefPoints = async (provinceName) => {
+    try {
+        // Encode tên tỉnh để xử lý tiếng Việt (VD: "Hà Nội" -> "H%C3%A0%20N%E1%BB%99i")
+        const safeProvince = encodeURIComponent(provinceName);
+        console.log(`📡 Đang tải điểm cứu trợ tại: ${provinceName}...`);
+        
+        // Dùng đúng API trong Swagger: /api/safety/nearby/{province}
+        const res = await axios.get(`${API_BASE}/safety/nearby/${safeProvince}`);
+        
+        setReliefPoints(res.data || []);
+        localStorage.setItem("RELIEF_POINTS", JSON.stringify(res.data || []));
+    } catch (error) {
+        console.error("❌ Lỗi lấy điểm cứu trợ:", error);
+        // Fallback: Lấy từ localStorage nếu API lỗi để không trống trơn
+        const storedPoints = localStorage.getItem("RELIEF_POINTS");
+        if (storedPoints) setReliefPoints(JSON.parse(storedPoints));
+    }
+  };
 
-  // 2. LOGIC ĐỒNG BỘ DỮ LIỆU
+  // 2. LOGIC ĐỒNG BỘ DỮ LIỆU KHI MOUNT
   useEffect(() => {
     const syncUserData = async () => {
       const savedUserStr = localStorage.getItem("currentUser");
@@ -66,7 +83,7 @@ const HomePage = () => {
             const userId = localData.id || localData.userId;
 
             if (userId) {
-                const res = await axios.get(`http://localhost:5075/api/user/${userId}/get-user-by-id`);
+                const res = await axios.get(`${API_BASE}/user/${userId}/get-user-by-id`);
                 if (res.data) {
                     let realUser = res.data.user || res.data; 
                     setUser(realUser);
@@ -79,10 +96,8 @@ const HomePage = () => {
       }
     };
 
-    const storedPoints = localStorage.getItem("RELIEF_POINTS");
-    if (storedPoints) setReliefPoints(JSON.parse(storedPoints));
-    else setReliefPoints(initialReliefPoints);
-
+    // [FIX] Gọi API lần đầu với tỉnh mặc định (Hà Nội)
+    fetchReliefPoints("Hà Nội");
     syncUserData();
   }, []);
 
@@ -97,7 +112,6 @@ const HomePage = () => {
   const getRoleDisplayName = (role) => {
     if (!role) return "";
     if (role === 'volunteer' && user?.status !== 'active') return "TNV (Chờ duyệt)";
-    
     switch (role) {
       case "citizen": return "Người Dân";
       case "volunteer": return "Tình Nguyện Viên";
@@ -106,20 +120,9 @@ const HomePage = () => {
     }
   };
 
-  // --- PHÂN QUYỀN HIỂN THỊ NÚT ---
-  
-  // 1. Quyền quản lý điểm cứu trợ (Admin hoặc Volunteer Active)
   const canManagePoints = user && (
     user.role === "admin" || 
     (user.role === "volunteer" && user.status === "active")
-  );
-
-  // 2. Quyền gửi SOS (Chỉ Người dân hoặc Volunteer CHƯA duyệt)
-  // [CẬP NHẬT] Volunteer đã active sẽ KHÔNG thấy nút này
-  const canRequestSOS = user && (
-      user.role === "citizen" || 
-      user.role === "volunteer-pending" || 
-      (user.role === "volunteer" && user.status !== "active") // Pending volunteer logic
   );
 
   // --- Logic hiển thị thông báo Pending ---
@@ -174,16 +177,109 @@ const HomePage = () => {
   const filterUniqueSuggestions = (data) => { const seen = new Set(); return data.filter((item) => { const duplicate = seen.has(item.display_name); seen.add(item.display_name); return !duplicate; }); };
   const fetchSuggestions = (query) => { if (debounceRef.current) clearTimeout(debounceRef.current); debounceRef.current = setTimeout(async () => { try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=vn`); const data = await res.json(); setSuggestions(filterUniqueSuggestions(data)); setShowSuggestions(true); } catch (error) { console.error("Lỗi gợi ý:", error); } }, 200); };
   const handleReqAddressChange = (e) => { const value = e.target.value; setReqAddress(value); setActiveAutocomplete("sos"); if (!value.trim()) { setSuggestions([]); setShowSuggestions(false); return; } fetchSuggestions(value); };
+  
   const handlePointAddressChange = (e) => { const value = e.target.value; setNewPointAddress(value); setActiveAutocomplete("point"); if (!value.trim()) { setSuggestions([]); setShowSuggestions(false); return; } fetchSuggestions(value); };
+  
   const handleSelectSuggestion = (item) => { if (activeAutocomplete === "sos") setReqAddress(item.display_name); else if (activeAutocomplete === "point") setNewPointAddress(item.display_name); setShowSuggestions(false); setActiveAutocomplete(null); };
+  
   const resetPointForm = () => { setNewPointName(""); setNewPointAddress(""); setNewPointType("Thực phẩm, Nước sạch"); setNewPointStatus("Đang hoạt động"); setEditingPoint(null); };
   const openAddModal = () => { resetPointForm(); setShowAddPointModal(true); };
+  
   const openEditModal = (point) => { setEditingPoint(point); setNewPointName(point.name); setNewPointAddress(point.address); setNewPointType(point.type); setNewPointStatus(point.status); setShowAddPointModal(true); };
-  const handleSavePoint = () => { if (!newPointName || !newPointAddress) { alert("Vui lòng nhập đủ thông tin!"); return; } let updatedPoints; if (editingPoint) { updatedPoints = reliefPoints.map((p) => p.id === editingPoint.id ? { ...p, name: newPointName, address: newPointAddress, type: newPointType, status: newPointStatus } : p); alert("Đã cập nhật!"); } else { const newPoint = { id: Date.now(), name: newPointName, address: newPointAddress, type: newPointType, status: newPointStatus }; updatedPoints = [...reliefPoints, newPoint]; alert("Đã thêm mới!"); } setReliefPoints(updatedPoints); localStorage.setItem("RELIEF_POINTS", JSON.stringify(updatedPoints)); setShowAddPointModal(false); resetPointForm(); };
-  const handleDeletePoint = (id) => { if (window.confirm("Xóa điểm này?")) { const updatedPoints = reliefPoints.filter((p) => p.id !== id); setReliefPoints(updatedPoints); localStorage.setItem("RELIEF_POINTS", JSON.stringify(updatedPoints)); } };
+
+  // --- LOGIC LƯU ĐIỂM CỨU TRỢ ---
+  const handleSavePoint = async () => {
+    if (!newPointName || !newPointAddress) { alert("Vui lòng nhập đủ thông tin!"); return; }
+    
+    setIsLoading(true);
+    try {
+        let coords = [0, 0];
+        try {
+            const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newPointAddress)}&limit=1`);
+            const geoData = await geoRes.json();
+            if (geoData && geoData.length > 0) {
+                coords = [parseFloat(geoData[0].lat), parseFloat(geoData[0].lon)];
+            }
+        } catch (e) { console.warn("Không lấy được tọa độ:", e); }
+
+        const token = localStorage.getItem("accessToken");
+        const config = { headers: { Authorization: `Bearer ${token}` } };
+        
+        const payload = {
+            name: newPointName,
+            address: newPointAddress,
+            type: newPointType,
+            status: newPointStatus,
+            latitude: coords[0],
+            longitude: coords[1],
+            description: "Thêm từ trang chủ" 
+        };
+
+        if (editingPoint) {
+            // API PUT (Giả định, nếu chưa có thì cần thêm vào backend)
+            await axios.put(`${API_BASE}/safety/safetypoint/${editingPoint.id}`, payload, config);
+            
+            const updatedPoints = reliefPoints.map((p) => p.id === editingPoint.id ? { ...p, ...payload, location: coords } : p);
+            setReliefPoints(updatedPoints);
+            alert("✅ Đã cập nhật!");
+        } else {
+            // API POST (Đã có trong Swagger)
+            const res = await axios.post(`${API_BASE}/safety/safetypoint/create`, payload, config);
+            
+            const newPoint = res.data || { ...payload, id: Date.now(), location: coords }; 
+            const updatedPoints = [...reliefPoints, newPoint];
+            setReliefPoints(updatedPoints);
+            alert("✅ Đã thêm mới!");
+        }
+        setShowAddPointModal(false);
+        resetPointForm();
+    } catch (error) {
+        console.error("Lỗi lưu điểm:", error);
+        alert(`❌ Có lỗi: ${error.response?.data?.message || error.message}`);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  const handleDeletePoint = async (id) => {
+    if (!window.confirm("Xóa điểm này?")) return;
+    setIsLoading(true);
+    try {
+        const token = localStorage.getItem("accessToken");
+        // API DELETE (Giả định)
+        await axios.delete(`${API_BASE}/safety/safetypoint/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        
+        const updatedPoints = reliefPoints.filter((p) => p.id !== id);
+        setReliefPoints(updatedPoints);
+        alert("🗑️ Đã xóa điểm cứu trợ.");
+    } catch (error) {
+        console.error("Lỗi xóa điểm:", error);
+        alert("❌ Xóa thất bại (API chưa hỗ trợ hoặc lỗi mạng).");
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   const handleViewOnMap = async (point) => { setIsLoading(true); try { if (!point.location) { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(point.address)}&limit=1`); const data = await res.json(); if (data && data.length > 0) { const lat = parseFloat(data[0].lat); const lon = parseFloat(data[0].lon); navigate("/map", { state: { position: [lat, lon], name: point.name } }); } else { alert("Không tìm thấy tọa độ!"); navigate("/map"); } } else { navigate("/map", { state: { position: point.location, name: point.name } }); } } catch (error) { navigate("/map"); } finally { setIsLoading(false); } };
+  
   const handleCreateRequest = async () => { if (!user) { alert("Vui lòng đăng nhập."); return; } if (!reqAddress.trim()) { alert("Vui lòng nhập địa chỉ."); return; } setIsSubmitting(true); try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(reqAddress)}&limit=1`); const data = await res.json(); let finalLocation = user.location; let finalAddress = reqAddress; if (data && data.length > 0) { finalLocation = [parseFloat(data[0].lat), parseFloat(data[0].lon)]; finalAddress = data[0].display_name; } else { if (!finalLocation) { alert("Không tìm thấy tọa độ."); setIsSubmitting(false); return; } if (!window.confirm("Không tìm thấy tọa độ mới. Dùng vị trí cũ?")) { setIsSubmitting(false); return; } } const requests = JSON.parse(localStorage.getItem("RELIEF_REQUESTS") || "[]"); const newRequest = { id: Date.now(), userId: user.phone, name: user.fullName || user.name, phone: user.phone, address: finalAddress, location: finalLocation, type: reqType, description: reqDesc, status: "pending", timestamp: new Date().toLocaleString(), }; localStorage.setItem("RELIEF_REQUESTS", JSON.stringify([...requests, newRequest])); alert("✅ Gửi thành công!"); setShowRequestForm(false); setReqDesc(""); } catch (error) { alert("Lỗi xử lý."); } finally { setIsSubmitting(false); } };
-  const handleChooseProvince = async (province) => { setCurrentProvince(province); setShowLocaDropdown(false); setIsLoading(true); try { const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(province.name + ", Việt Nam")}&format=json&limit=1`); const data = await res.json(); if (data && data.length > 0) { navigate("/map", { state: { position: [parseFloat(data[0].lat), parseFloat(data[0].lon)], name: province.name } }); } else { navigate("/map", { state: { name: province.name } }); } } catch (error) { navigate("/map"); } finally { setIsLoading(false); } };
+  
+  // [FIX] Cập nhật hàm chọn tỉnh để reload dữ liệu theo API mới
+  const handleChooseProvince = async (province) => { 
+      setCurrentProvince(province); 
+      setShowLocaDropdown(false); 
+      
+      // Load lại danh sách điểm an toàn theo tỉnh mới
+      fetchReliefPoints(province.name);
+
+      setIsLoading(true); 
+      try { 
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(province.name + ", Việt Nam")}&format=json&limit=1`); 
+          const data = await res.json(); 
+          // Chỉ lấy dữ liệu để update view nếu cần, nhưng fetchReliefPoints đã lo phần data rồi
+      } catch (error) { } 
+      finally { setIsLoading(false); } 
+  };
 
   return (
     <div className="homepage">
@@ -226,17 +322,12 @@ const HomePage = () => {
             <h1>Thông Tin Cứu Hộ</h1><p>Dự án cộng đồng nhằm thu thập và trực quan hóa thông tin liên quan đến cứu trợ.</p>
             <div className="lst-btn-hp">
                 <button className="btn-hero" onClick={() => navigate("/map")}>Xem Bản Đồ</button>
-                
-                {/* [ĐÃ SỬA] Nút này chỉ hiện nếu canRequestSOS = true */}
-                {canRequestSOS && (
-                    <button className="btn-request" onClick={() => setShowRequestForm(true)}>Gửi yêu cầu hỗ trợ</button>
-                )}
             </div>
           </div>
         </div>
         <div className="relief-points-section" style={{ padding: "40px 20px", width: "100%", maxWidth: "1600px", margin: "0 auto" }}>
           <div className="top-bar-table" style={{ display: "flex", justifyContent: "space-between", marginBottom: "20px", alignItems: "center" }}>
-              <h2 style={{ color: "#333", margin: 0 }}>Danh Sách Các Điểm Cứu Trợ</h2>
+              <h2 style={{ color: "#333", margin: 0 }}>Danh Sách Các Điểm Cứu Trợ ({currentProvince?.name || "Toàn quốc"})</h2>
               {canManagePoints && (
                   <button className="btn-add-support" onClick={openAddModal} style={{ backgroundColor: "#15803d", color: "white", border: "none", padding: "10px 20px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold", fontSize: "1rem" }}>
                       + Thêm điểm cứu trợ
@@ -256,7 +347,7 @@ const HomePage = () => {
                       <td style={{ padding: "16px", textAlign: "center" }}><div style={{ display: "flex", justifyContent: "center", gap: "8px" }}><button onClick={() => handleViewOnMap(point)} style={{ cursor: "pointer", border: "1px solid #3b82f6", background: "white", color: "#3b82f6", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Xem vị trí</button>
                       {canManagePoints && <><button onClick={() => openEditModal(point)} style={{ cursor: "pointer", border: "1px solid #f59e0b", background: "white", color: "#f59e0b", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Sửa</button><button onClick={() => handleDeletePoint(point.id)} style={{ cursor: "pointer", border: "1px solid #ef4444", background: "white", color: "#ef4444", padding: "6px 12px", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem" }}>Xóa</button></>}</div></td>
                     </tr>
-                  )) : <tr><td colSpan={canManagePoints ? 5 : 4} style={{ padding: "30px", textAlign: "center", color: "#666", fontStyle: "italic" }}>Chưa có điểm cứu trợ nào.</td></tr>}
+                  )) : <tr><td colSpan={canManagePoints ? 5 : 4} style={{ padding: "30px", textAlign: "center", color: "#666", fontStyle: "italic" }}>Chưa có điểm cứu trợ nào ở {currentProvince?.name}.</td></tr>}
               </tbody>
             </table>
           </div>
