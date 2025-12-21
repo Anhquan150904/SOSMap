@@ -1,66 +1,226 @@
-/* src/modules/admin/AdminDashboard.css */
-
-/* --- TỔNG QUAN --- */
+/* --- TỔNG QUAN (GIỮ NGUYÊN GIAO DIỆN CŨ) --- */
 .admin-dashboard {
-    min-height: 100vh;
-    background-color: #f8fafc;
-    font-family: 'Inter', sans-serif;
-  }
-  
-  .admin-header {
-    background-color: #0f172a;
-    color: white;
-    padding: 15px 40px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  }
-  
-  .btn-logout {
-    background: #ef4444;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 600;
-  }
+  min-height: 100vh;
+  background-color: #f8fafc;
+  font-family: 'Inter', sans-serif;
+}
+
+.admin-header {
+  background-color: #0f172a; /* Màu tối cũ */
+  color: white;
+  padding: 0 30px; /* Giảm padding một chút để gọn */
+  height: 70px;    /* Cố định chiều cao header */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  position: sticky; /* Giữ header khi cuộn */
+  top: 0;
+  z-index: 1000;
+}
+
+.admin-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+/* --- TAB BUTTONS (STYLE CŨ) --- */
+.admin-header button {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 15px;
+  height: 50px; /* Bằng chiều cao header */
+  font-size: 1rem;
+  transition: all 0.2s;
+  position: relative;
+  margin: 5px;
+}
+
+.admin-header button:hover {
+  color: white;
+  background-color: rgba(255,255,255,0.05);
+}
+
+/* Tab đang chọn - Giữ nguyên style cũ của bạn hoặc thêm gạch chân */
+.admin-header button.active-tab {
+  color: white;
+  border-bottom: 3px solid #3b82f6; 
+}
+
+.btn-logout {
+  background: #ef4444 !important;
+  color: white !important;
+  border: none !important;
+  padding: 8px 16px !important;
+  border-radius: 6px;
+  height: 45px !important;
+  margin: 5px;
+}
+
+/* =========================================
+   PHẦN MỚI THÊM: NOTIFICATION DROPDOWN
+   (Đã chỉnh sửa để KHÔNG vỡ layout Header)
+   ========================================= */
+
+.notification-container {
+  position: relative; /* QUAN TRỌNG: Làm mốc neo cho dropdown */
+  margin-left: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.bell-icon-wrapper {
+  position: relative;
+  padding: 8px;
+  transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.bell-icon-wrapper:hover {
+  transform: scale(1.1);
+}
+
+.notification-badge {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  background-color: #ef4444; /* Đỏ */
+  color: white;
+  border-radius: 50%;
+  padding: 2px 5px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  border: 2px solid #0f172a; /* Viền trùng màu nền header */
+  min-width: 16px;
+  text-align: center;
+}
+
+/* KHUNG DROPDOWN */
+.notification-dropdown {
+  position: absolute; /* QUAN TRỌNG: Nổi lên trên, không chiếm diện tích */
+  top: 60px; /* Cách mép trên header một chút */
+  left: -20px; /* Căn chỉnh vị trí so với cái chuông */
+  width: 350px;
+  max-height: 450px; /* Giới hạn chiều cao */
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2); /* Đổ bóng để nổi bật */
+  border: 1px solid #e2e8f0;
+  z-index: 2000; /* Đảm bảo nằm trên cùng */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mũi tên tam giác nhỏ chỉ lên (Trang trí) */
+.notification-dropdown::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 32px; /* Căn thẳng với cái chuông */
+  border-width: 0 8px 8px 8px;
+  border-style: solid;
+  border-color: transparent transparent white transparent;
+}
+
+/* Header của Dropdown */
+.dropdown-header {
+  padding: 12px 15px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 700;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+/* Body (Danh sách thông báo) */
+.dropdown-body {
+  overflow-y: auto;
+  max-height: 400px;
+}
+
+.no-notif {
+  padding: 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Từng mục thông báo */
+.notif-item {
+  padding: 12px 15px;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.1s;
+  position: relative;
+  text-align: left; /* Đảm bảo chữ căn trái */
+}
+
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background-color: #f8fafc; }
+
+/* Dải màu đánh dấu loại thông báo */
+.notif-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0; width: 4px;
+}
+.notif-item.error::before { background: #ef4444; }   /* Đỏ */
+.notif-item.warning::before { background: #f59e0b; } /* Vàng */
+.notif-item.success::before { background: #22c55e; } /* Xanh lá */
+.notif-item.info::before { background: #3b82f6; }    /* Xanh dương */
+
+.notif-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 4px; display: block; color: #334155; }
+.notif-details { font-size: 0.85rem; color: #64748b; line-height: 1.4; display: block; }
+.notif-time { font-size: 0.75rem; color: #94a3b8; float: right; font-weight: 500; margin-left: 10px;}
+
+/* Màu tiêu đề theo loại */
+.notif-item.error .notif-title { color: #ef4444; }
+.notif-item.success .notif-title { color: #15803d; }
+
+/* =========================================
+   HẾT PHẦN NOTIFICATION
+   ========================================= */
+
 
 /* --- CONTAINER CHÍNH --- */
 .dashboard-container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 30px auto;
   padding: 0 20px;
   display: flex;
   flex-direction: column;
   gap: 25px;
+  margin-top: 40px !important; /* Đẩy nội dung xuống khỏi header */
 }
 
-/* --- CÁC KHỐI SECTION (BLOCK) --- */
+/* --- SECTION BLOCKS --- */
 .section-block {
   background: white;
   border-radius: 12px;
-  padding: 25px;
+  padding: 0; /* Reset padding để header full width */
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   border: 1px solid #e2e8f0;
-  position: relative;
   overflow: hidden;
+  margin-bottom: 25px;
 }
-
-.section-block::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 4px;
-}
-
-.danger-block::before { background-color: #ef4444; }
-.info-block::before { background-color: #8b5cf6; }
 
 .section-block h3 {
-  margin-top: 0;
-  margin-bottom: 20px;
+  margin: 0;
+  padding: 15px 20px;
+  background-color: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
   font-size: 1.1rem;
   color: #1e293b;
   display: flex;
@@ -68,80 +228,52 @@
   gap: 10px;
 }
 
-/* --- BẢNG DỮ LIỆU (TABLE) --- */
-/* 1. Bao bọc bảng để có thanh cuộn ngang khi cần */
+/* --- TABLE --- */
 .table-container {
   width: 100%;
-  overflow-x: auto; /* Cho phép cuộn ngang nếu bảng quá rộng */
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  overflow-x: auto;
   background: white;
 }
 
-/* 2. Thiết lập bảng cứng */
 .admin-table {
   width: 100%;
-  min-width: 1000px; /* Đảm bảo bảng luôn đủ rộng, không bị co dúm */
-  border-collapse: collapse; /* Gộp đường viền (quan trọng để ra dạng bảng cứng) */
+  min-width: 1000px;
+  border-collapse: collapse;
   font-size: 0.9rem;
 }
 
-/* 3. Kẻ khung cho Tiêu đề và Ô dữ liệu */
 .admin-table th, 
 .admin-table td {
   padding: 12px 15px;
-  border: 1px solid #cbd5e1; /* Đường kẻ khung màu xám */
+  border-bottom: 1px solid #e2e8f0; /* Chỉ kẻ ngang cho đẹp */
   text-align: center;
   vertical-align: middle;
   color: #334155;
 }
 
-/* 4. Style riêng cho Header */
 .admin-table th {
-  background-color: #f1f5f9; /* Màu nền tiêu đề */
-  color: #1e293b;
+  background-color: #f8fafc;
+  color: #475569;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 0.75rem;
-  white-space: nowrap; /* Không cho tiêu đề xuống dòng */
-}
-
-/* 5. Hiệu ứng dòng chẵn lẻ và hover */
-.admin-table tbody tr:nth-child(even) {
-  background-color: #f8fafc;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .admin-table tbody tr:hover {
-  background-color: #f0f9ff; /* Màu xanh nhạt khi di chuột vào */
+  background-color: #f8fafc;
 }
 
-/* 6. CỐ ĐỊNH CỘT ĐỊA CHỈ (Quan trọng) */
-.col-address {
-  width: 250px;      /* Chiều rộng cố định */
-  max-width: 300px;
-  word-wrap: break-word; /* Tự xuống dòng nếu chữ quá dài */
-  white-space: normal;
-}
-
-/* --- BADGES --- */
+/* --- BADGES & BUTTONS --- */
 .badge {
   display: inline-flex; align-items: center; padding: 4px 10px;
-  border-radius: 99px; font-size: 0.75rem; font-weight: 700; white-space: nowrap;
+  border-radius: 20px; font-size: 0.75rem; font-weight: 700; white-space: nowrap;
 }
-.badge-type { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
-.status-pending { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
-.status-approved { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
-.status-in_progress { background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
-.status-completed { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
-.status-cancel_pending { background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
-.status-canceled { background: #fce7f3; color: #be185d; border: 1px solid #fbcfe8; }
-
-.role-admin { background: #1e293b; color: #fff; }
+.role-admin { background: #e0e7ff; color: #4338ca; }
 .role-volunteer { background: #dcfce7; color: #15803d; }
-.role-volunteer-pending { background: #ffedd5; color: #9a3412; }
-.role-citizen { background: #fee2e2; color: #991b1b; }
+.status-pending { background: #fff7ed; color: #c2410c; }
+.status-accepted { background: #dcfce7; color: #15803d; }
 
-/* --- BUTTONS NHỎ --- */
 .btn-small {
   padding: 6px 12px;
   border: none;
@@ -150,19 +282,10 @@
   font-weight: 600;
   cursor: pointer;
   color: white;
-  transition: opacity 0.2s;
-  
-  /* --- QUAN TRỌNG: Cấu hình Flexbox --- */
-  display: inline-flex;    /* Hoặc flex */
-  align-items: center;     /* Căn giữa theo chiều dọc (đã có) */
-  justify-content: center; /* <--- THÊM DÒNG NÀY: Căn giữa theo chiều ngang */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 5px;
+  margin: 0 2px;
 }
-.btn-small:hover { opacity: 0.9; }
-.btn-success { background: #10b981; }
-.btn-primary { background: #8b5cf6; }
-.btn-danger { background: #ef4444; }
-
-.empty-text { text-align: center; padding: 30px; color: #94a3b8; font-style: italic; }
-strong { color: #0f172a; }
-small { display: block; margin-top: 4px; color: #64748b; font-size: 0.8rem; }
+.btn-primary { background: #3b82f6; }
