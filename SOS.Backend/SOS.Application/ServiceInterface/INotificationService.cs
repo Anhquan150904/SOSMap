@@ -14,5 +14,6 @@ namespace SOS.Service.Interfaces
         // phía người dân
         Task NotifyReportStatusChanged(Guid userId, object payload);
         Task NotifyReportCancel (Guid userId, object payload);
+        Task NotifyVerifiedVolunteer(Guid userId, object payload);
     }
 }

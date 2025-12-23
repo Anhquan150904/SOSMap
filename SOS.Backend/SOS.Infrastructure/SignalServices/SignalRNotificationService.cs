@@ -54,6 +54,15 @@ namespace Sos.Application.Services
                 .SendAsync("TaskCanceledApproved", payload);
         }
 
+        public Task NotifyVerifiedVolunteer(Guid userId, object payload)
+        {
+            var groupName = $"volunteer_team_{userId}";
+
+            return _hubContext.Clients
+                .Group(groupName)
+                .SendAsync("VerifiedVolunteer", payload);
+        }
+
         public Task NotifyReportStatusChanged(Guid userId, object payload)
         {
             var groupName = $"user_{userId}";
