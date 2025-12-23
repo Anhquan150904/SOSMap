@@ -46,6 +46,8 @@ namespace Sos.Application.Services
             var payload = new
             {
                 Message = $"Admin đã chấp nhận yêu cầu hủy Task {taskId} của bạn",
+                TaskId = taskId,
+                ReportId = task.ReportId
 
             };
             await _notification.NotifyTaskCanceled(volunteerId, payload);

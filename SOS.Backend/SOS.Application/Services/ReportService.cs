@@ -52,6 +52,7 @@ namespace Sos.Application.Services
             await _notification.NotifyReportCreatedAsync(new
             {
                 Message = "Có yêu cầu cứu hộ mới.",
+                Name = report.Name,
                 id = report.Id,
                 level = report.Level,
                 status = report.Status,

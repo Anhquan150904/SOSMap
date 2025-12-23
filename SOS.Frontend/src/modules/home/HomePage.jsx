@@ -2,12 +2,10 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios"; 
-import * as signalR from "@microsoft/signalr"; // 1. Import SignalR
 import Modal from "../../components/Modal";
 import "./HomePage.css";
 
 const API_BASE = "http://localhost:5075/api";
-const SIGNALR_HUB_URL = "http://localhost:5075/SignalRHub"; // URL Hub
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -18,13 +16,8 @@ const HomePage = () => {
     return savedUser ? JSON.parse(savedUser) : null;
   });
   
-  // State Notification
-  const [notifications, setNotifications] = useState([]);
+  // State profile
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [showNotiDropdown, setShowNotiDropdown] = useState(false);
-  
-  // Ref để giữ kết nối SignalR không bị reset khi render
-  const connectionRef = useRef(null);
 
   // State Header & Loading
   const [provinces, setProvinces] = useState([]);
@@ -57,135 +50,6 @@ const HomePage = () => {
   const debounceRef = useRef(null);
   const wrapperRef = useRef(null);
   const pointWrapperRef = useRef(null);
-
-  // --- 2. TÍCH HỢP SIGNALR (QUAN TRỌNG) ---
-  useEffect(() => {
-    if (!user) return; 
-
-    const setupSignalR = async () => {
-        // 1. Nếu đang có kết nối, không làm gì cả để tránh AbortError
-        if (connectionRef.current && connectionRef.current.state !== signalR.HubConnectionState.Disconnected) {
-            return;
-        }
-
-        const connection = new signalR.HubConnectionBuilder()
-            .withUrl(SIGNALR_HUB_URL)
-            .withAutomaticReconnect()
-            .configureLogging(signalR.LogLevel.Error) // Chỉ hiện lỗi
-            .build();
-
-        connectionRef.current = connection;
-
-        // Helper thêm thông báo
-        const addNotify = (title, message, type = "info") => {
-            const newNoti = {
-                id: Date.now() + Math.random(),
-                title,
-                message: typeof message === 'object' ? JSON.stringify(message) : message,
-                type, 
-                time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-                isRead: false
-            };
-            setNotifications(prev => {
-                const updated = [newNoti, ...prev];
-                localStorage.setItem("SYSTEM_NOTIFICATIONS", JSON.stringify(updated.slice(0, 50))); 
-                return updated;
-            });
-        };
-
-        // --- EVENTS ---
-
-        connection.on("ServerMessage", (msg) => {
-            // Lọc tin nhắn rác
-            if (!msg || msg.includes("Kết nối") || msg.includes("ConnectionId") || msg.includes("Joined")) return;
-            addNotify("💬 Hệ thống", msg, "info");
-        });
-
-        connection.on("ReportCreated", (payload) => {
-            if (user.role === 'volunteer') {
-                const pName = payload.Name || payload.name || 'Người dân';
-                const pDetails = payload.Details || payload.details || payload.Level || payload.level || 'Cần hỗ trợ';
-                addNotify("🚨 CÓ ĐƠN CỨU TRỢ MỚI!", `${pName} cần giúp: ${pDetails}`, "error");
-            }
-        });
-
-        // 3. ReportStatusChanged (Fix undefined)
-        connection.on("ReportStatusChanged", async (payload) => {
-            console.log("Status Payload:", payload); // Debug xem server trả về gì
-
-            // [FIX 1] Ưu tiên lấy ReportId, nếu không có thì lấy Id (phòng trường hợp backend trả về nguyên object Report)
-            const rId = payload.ReportId || payload.reportId || payload.Id || payload.id || "N/A";
-            const rStatus = payload.Status || payload.status || "Mới";
-            const volId = payload.VolunteerId || payload.volunteerId;
-
-            const statusLower = String(rStatus).toLowerCase();
-
-            if (statusLower === "accepted" || statusLower === "inprocess" || statusLower === "in_process") {
-                let volName = "Một Tình nguyện viên";
-
-                // Gọi API lấy tên User
-                if (volId && volId !== "00000000-0000-0000-0000-000000000000") {
-                    try {
-                        const res = await axios.get(`${API_BASE}/user/${volId}/get-user-by-id`);
-                        const u = res.data.user || res.data;
-                        if (u && u.fullName) volName = u.fullName;
-                    } catch (e) { console.error("Lỗi lấy tên TNV", e); }
-                }
-
-                addNotify("🟢 Đã có người tiếp nhận", `TNV ${volName} đã nhận đơn của bạn và đang trên đường đến.`, "success");
-            } 
-            else if (statusLower === "done" || statusLower === "completed") {
-                addNotify("✅ Cứu trợ hoàn thành", `Đơn #${rId} đã xử lý xong.`, "success");
-            }
-        });
-
-        // 4. ReportCanceled (Fix lý do)
-        connection.on("ReportCanceled", (payload) => {
-            console.log("Canceled Payload:", payload);
-            // [FIX 2] Kiểm tra mọi biến thể của Note/Reason
-            let reason = payload.Note || payload.note || payload.Reason || payload.reason || payload.CancelReason;
-            if (!reason || reason === "null") reason = "Admin/TNV không ghi chú lý do.";
-            
-            addNotify("❌ Đơn cứu trợ bị hủy", `Lý do: ${reason}`, "error");
-        });
-
-        // 5. TaskCanceledApproved (Fix Task ID undefined)
-        connection.on("TaskCanceledApproved", (payload) => {
-            if (user.role === 'volunteer') {
-                // [FIX 3] Trong bảng RescueTasks, khóa chính là Id. Có thể backend trả về Id chứ k phải TaskId
-                const tId = payload.TaskId || payload.taskId || payload.Id || payload.id || "N/A";
-                addNotify("✅ Yêu cầu hủy được duyệt", `Nhiệm vụ #${tId} đã hủy thành công.`, "success");
-            }
-        });
-
-        // --- START ---
-        try {
-            await connection.start();
-            console.log("✅ SignalR Connected");
-            const role = user.role ? user.role.toLowerCase() : "citizen";
-            const status = user.status ? user.status.toLowerCase() : "active";
-            const userId = user.id || user.userId;
-            await connection.invoke("JoinByRoleAndStatus", role, status, userId);
-        } catch (err) {
-            console.error("SignalR Connect Failed (Ignore if re-negotiating):", err.message);
-        }
-    };
-
-    setupSignalR();
-
-    // Cleanup
-    return () => {
-        if (connectionRef.current) {
-            connectionRef.current.off("ServerMessage");
-            connectionRef.current.off("ReportCreated");
-            connectionRef.current.off("ReportStatusChanged");
-            connectionRef.current.off("ReportCanceled");
-            connectionRef.current.off("TaskCanceledApproved");
-            connectionRef.current.stop();
-            connectionRef.current = null;
-        }
-    };
-  }, [user]);
 
   // --- FETCH RELIEF POINTS ---
   const fetchReliefPoints = async () => {
@@ -237,21 +101,11 @@ const HomePage = () => {
     syncUserData();
   }, []);
 
-  // --- INIT NOTIFICATIONS FROM STORAGE ---
-  useEffect(() => {
-      const savedNotis = localStorage.getItem("SYSTEM_NOTIFICATIONS");
-      if (savedNotis) {
-          setNotifications(JSON.parse(savedNotis));
-      }
-  }, []);
-
   // --- HELPER LOGIC ---
   const handleLogout = () => {
     localStorage.removeItem("currentUser");
     localStorage.removeItem("accessToken");
-    localStorage.removeItem("SYSTEM_NOTIFICATIONS"); // Xóa thông báo khi logout
     setUser(null); 
-    setNotifications([]);
     navigate("/");
   };
 
@@ -270,34 +124,6 @@ const HomePage = () => {
     user.role === "admin" || 
     (user.role === "volunteer" && user.status === "active")
   );
-
-  // --- RENDER NOTIFICATIONS ---
-  const renderNotifications = () => {
-    const isPending = user?.role === "volunteer" && user?.status !== "active"; 
-    return (
-      <div>
-        {isPending && (
-          <div style={{ padding: "15px", borderBottom: "1px solid #eee", backgroundColor: "#fff7ed" }}>
-            <div style={{ fontWeight: "bold", color: "#b45309" }}>⏳ Trạng thái hồ sơ</div>
-            <div style={{ fontSize: "0.85rem" }}>Tài khoản đang chờ duyệt.<br/>Tạm thời chỉ có quyền Người dân.</div>
-          </div>
-        )}
-        {notifications.length === 0 && !isPending ? (
-             <div style={{ padding: "20px", color: "#999", textAlign: "center" }}>Không có thông báo mới.</div>
-        ) : (
-            notifications.map((noti) => (
-                <div key={noti.id} className={`notification-item ${noti.type}`} style={{ padding: "12px", borderBottom: "1px solid #f0f0f0", fontSize: "0.9rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                        <strong style={{ color: noti.type === 'error' ? '#dc2626' : noti.type === 'success' ? '#16a34a' : '#333' }}>{noti.title}</strong>
-                        <span style={{ fontSize: "0.75rem", color: "#999" }}>{noti.time}</span>
-                    </div>
-                    <div style={{ color: "#555" }}>{noti.message}</div>
-                </div>
-            ))
-        )}
-      </div>
-    );
-  };
 
   // --- AUTOCOMPLETE LOGIC ---
   useEffect(() => { const fetchApiProvinces = async () => { try { const res = await fetch("https://provinces.open-api.vn/api/v2/?depth=1"); setProvinces(await res.json()); } catch (error) {} }; fetchApiProvinces(); }, []);
@@ -368,10 +194,6 @@ const HomePage = () => {
           <a onClick={() => navigate("/about")}>Liên hệ</a>
           {user ? (
             <div style={{ display: "flex", alignItems: "center", gap: "20px", marginLeft: "10px" }}>
-              <div className="notification-icon" style={{ position: "relative", cursor: "pointer", fontSize: "1.2rem" }} onClick={() => setShowNotiDropdown(!showNotiDropdown)}>
-                🔔 {notifications.length > 0 && <span style={{ position: "absolute", top: "-2px", right: "-2px", width: "10px", height: "10px", backgroundColor: "#dc2626", borderRadius: "50%", border: "2px solid white" }}></span>}
-                {showNotiDropdown && <div style={{ position: "absolute", top: "35px", right: "-10px", width: "320px", backgroundColor: "white", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", borderRadius: "8px", zIndex: 1000, border: "1px solid #eee", overflow: "hidden" }}><div style={{ padding: "15px", borderBottom: "1px solid #eee", fontWeight: "bold", background: "#f9fafb", fontSize: "1rem" }}>Thông báo ({notifications.length})</div><div className="notification-list" style={{ maxHeight: "350px", overflowY: "auto" }}>{renderNotifications()}</div></div>}
-              </div>
               <div className="user-profile" onClick={() => setShowProfileDropdown(!showProfileDropdown)} style={{ cursor: "pointer" }}>
                 <span className="user-name">Xin chào, <strong>{user?.fullName || user?.name || "Bạn"}</strong> <small>({getRoleDisplayName(user.role)})</small> ▾</span>
                 {showProfileDropdown && <div className="dropdown-menu"><div className="dropdown-item" onClick={handleLogout}>Đăng xuất</div></div>}
