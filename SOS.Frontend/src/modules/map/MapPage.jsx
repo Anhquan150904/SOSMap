@@ -203,9 +203,8 @@ const MapPage = () => {
             initMapData();
         });
 
-        connection.on("ReportCanceled", (payload) => {
-            const reason = payload.Note || payload.note || payload.Reason || payload.reason || 'Không rõ';
-            addNotify("❌ Đơn cứu trợ bị hủy", `Lý do: ${reason}`, "error");
+        connection.on("ReportCanceled", () => {
+            addNotify("❌ Đơn cứu trợ bị hủy", "Đơn của bạn đã bị hủy. Vui lòng chờ TNV khác nhận", "error");
             initMapData();
         });
 
@@ -213,6 +212,14 @@ const MapPage = () => {
             if (currentUser.role === 'volunteer') {
                 const tId = payload.TaskId || payload.taskId || "N/A";
                 addNotify("✅ Yêu cầu hủy được duyệt", `Nhiệm vụ #${tId} đã hủy thành công.`, "success");
+                initMapData();
+            }
+        });
+
+        connection.on("TaskCanceledRejected", (payload) => {
+            if (currentUser.role === 'volunteer') {
+                const tId = payload.TaskId || payload.taskId || "N/A";
+                addNotify("❌ Yêu cầu hủy bị từ chối", `Nhiệm vụ #${tId} vẫn đang tiếp tục.`, "error");
                 initMapData();
             }
         });
