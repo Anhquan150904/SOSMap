@@ -58,6 +58,10 @@ namespace Sos.Application.Services
                 status = report.Status,
                 address = report.Address
             });
+            await _notification.NotifyNewSosRequesttoPending(user.Id, new
+            {
+                Message = "Yêu cầu cứu hộ của bạn đã được ghi nhận và đang chờ đội cứu hộ tiếp nhận."
+            });
 
             return report.Id;
         }

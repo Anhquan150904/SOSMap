@@ -12,8 +12,14 @@ namespace SOS.Service.Interfaces
         Task NotifyVolunteersRequestTaskCanceled(object payload);
 
         // phía người dân
+        Task NotifyReportStatusChangedtoReject(Guid userId, object payload);
+        Task NotifyReportStatusChangedtoAccept(Guid userId, object payload);
         Task NotifyReportStatusChanged(Guid userId, object payload);
         Task NotifyReportCancel (Guid userId, object payload);
         Task NotifyVerifiedVolunteer(Guid userId, object payload);
+
+        Task TaskCanceledRejected(Guid volunteerId, object payload);
+        Task NotifyNewSosRequesttoPending(Guid userId,object payload);
+
     }
 }

@@ -70,7 +70,7 @@ namespace Sos.Application.Services
                 Message = $"Admin không chấp nhận yêu cầu hủy Task {taskId} của bạn",
 
             };
-            await _notification.NotifyTaskCanceled(volunteerId, payload);
+            await _notification.TaskCanceledRejected(volunteerId, payload);
         }
 
         public async Task AcceptRequestVolunteer(Guid userId)
@@ -91,7 +91,7 @@ namespace Sos.Application.Services
             report.Status = "accepted";
             await _reportRepository.UpdateAsync(report);
 
-            await _notification.NotifyReportStatusChanged(report.UserId, new
+            await _notification.NotifyReportStatusChangedtoAccept(report.UserId, new
             {
                 Message = "Báo cáo của bạn đã được chấp nhận và đang trong quá trình xử lý."
             });
@@ -101,7 +101,7 @@ namespace Sos.Application.Services
         {
             var report = await _reportRepository.GetByIdAsync(reportId);
             await _reportRepository.DeleteAsync(reportId);
-            await _notification.NotifyReportStatusChanged(report.UserId, new
+            await _notification.NotifyReportStatusChangedtoReject(report.UserId, new
             {
                 Message = "Báo cáo của bạn đã bị từ chối."
             });

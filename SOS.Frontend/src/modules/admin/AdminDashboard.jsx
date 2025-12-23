@@ -2,7 +2,6 @@
 import axios from "axios";
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-// --- 1. IMPORT CÁC THƯ VIỆN CẦN THIẾT CHO NOTIFICATION ---
 import * as signalR from "@microsoft/signalr";
 import { FaRegBell } from "react-icons/fa"; 
 import "./AdminDashboard.css";
@@ -63,11 +62,10 @@ const AdminDashboard = () => {
     // Nếu Auth OK -> Tải dữ liệu lần đầu
     fetchData();
 
-// B. CẤU HÌNH SIGNALR
+    // B. CẤU HÌNH SIGNALR
     const setupSignalR = async () => {
         if (connectionRef.current) return;
 
-        // 1. Đổi LogLevel thành Information để xem được log kết nối như file test
         const connection = new signalR.HubConnectionBuilder()
             .withUrl(SIGNALR_HUB_URL)
             .withAutomaticReconnect()
@@ -88,87 +86,60 @@ const AdminDashboard = () => {
             setUnreadCount(prev => prev + 1);
         };
 
-        // --- LẮNG NGHE SỰ KIỆN (EVENT LISTENERS) ---
-
-        // [QUAN TRỌNG - MỚI THÊM] 1. ReportCreated: Khi dân gửi đơn
+        // --- LẮNG NGHE SỰ KIỆN ---
         connection.on("ReportCreated", (payload) => {
-            console.log("📢 [Socket] ReportCreated:", payload);
             const rName = payload.name || payload.Name || "Người dân";
             const rPhone = payload.phone || payload.Phone || "";
-            
             addNotification("📢 Có đơn cứu trợ mới!", `Từ: ${rName} - ${rPhone}`, "info");
-            
-            // Gọi lại API để danh sách đơn tự động cập nhật ngay lập tức
             fetchData(); 
         });
 
-        // 2. TaskAccepted: Khi TNV nhận đơn
         connection.on("TaskAccepted", async (payload) => {
-            console.log("🟢 [Socket] TaskAccepted:", payload);
             const volId = payload.volunteerId || payload.VolunteerId;
             let volName = "TNV (Chưa rõ tên)";
-
             if (volId) {
                 try {
                     const res = await axios.get(`${API_BASE}/user/${volId}/get-user-by-id`);
                     const userData = res.data.user || res.data;
-                    if (userData && userData.fullName) {
-                        volName = userData.fullName;
-                    }
-                } catch (err) {
-                    console.error("Không lấy được tên TNV:", err);
-                }
+                    if (userData && userData.fullName) volName = userData.fullName;
+                } catch (err) {}
             }
-
             addNotification("🟢 Đã có TNV nhận đơn", `TNV: ${volName} đã nhận nhiệm vụ.`, "success");
             fetchData();
         });
 
-        // 3. NotifyAdminsTaskCompleted: Khi nhiệm vụ xong
         connection.on("NotifyAdminsTaskCompleted", payload => {
-            console.log("✅ [Socket] TaskCompleted:", payload);
             const rId = payload.reportId || payload.ReportId;
             addNotification("✅ Nhiệm vụ hoàn thành", `Report ID: ${rId} đã xong.`, "success");
             fetchData();
         });
 
-        // 4. VolunteerRequestTaskCanceled: Yêu cầu hủy (Cái này bạn đang chạy được)
         connection.on("VolunteerRequestTaskCanceled", (payload) => {
-            console.log("🚨 [Socket] RequestCancel:", payload);
             const tId = payload.taskId || payload.TaskId;
             const note = payload.note || payload.Note || "Không có lý do";
             addNotification("⚠️ Yêu cầu hủy nhiệm vụ", `Task ID: ${tId}. Lý do: ${note}`, "warning");
             fetchData();
         });
 
-        // 5. TaskCanceledApproved: Đã duyệt hủy
         connection.on("TaskCanceledApproved", payload => {
-            console.log("❌ [Socket] CancelApproved:", payload);
             const tId = payload.taskId || payload.TaskId;
             addNotification("❌ Đã duyệt hủy nhiệm vụ", `Task ID: ${tId} đã hủy.`, "info");
             fetchData();
         });
 
-        // KẾT NỐI VÀ JOIN GROUP
         try {
             await connection.start();
-            console.log("✅ SignalR Connected (React)");
-
             const role = currentUser.role ? currentUser.role.toLowerCase() : "admin";
             const status = currentUser.status ? currentUser.status.toLowerCase() : "active";
             const userId = currentUser.id || currentUser.userId;
-
-            console.log(`➡️ Đang Join Group: Role=${role}, ID=${userId}`);
-            
             await connection.invoke("JoinByRoleAndStatus", role, status, userId);
         } catch (err) { 
-            console.error("❌ SignalR Connect Error:", err); 
+            console.error("SignalR Connect Error:", err); 
         }
     };
 
     setupSignalR();
 
-    // Cleanup khi component unmount
     return () => {
         if (connectionRef.current) {
             connectionRef.current.stop();
@@ -176,9 +147,9 @@ const AdminDashboard = () => {
         }
     };
 
-  }, [navigate]); // Chỉ chạy 1 lần khi mount (và khi navigate thay đổi)
+  }, [navigate]);
 
-  // --- 6. XỬ LÝ CLICK OUTSIDE (ĐÓNG DROPDOWN THÔNG BÁO) ---
+  // --- 6. XỬ LÝ CLICK OUTSIDE ---
   useEffect(() => {
     function handleClickOutside(event) {
         if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -189,13 +160,12 @@ const AdminDashboard = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownRef]);
 
-  // --- 7. HÀM LẤY DỮ LIỆU TỪ API ---
+  // --- 7. HÀM LẤY DỮ LIỆU TỪ API (CẬP NHẬT LOGIC LẤY TÊN TNV) ---
   const fetchData = async () => {
-    // Không dùng header Auth để tránh lỗi nếu backend không trả token
     const config = {}; 
 
     try {
-      // Load User
+      // 1. Load User
       try {
         const resPending = await axios.get(`${API_BASE}/user/by-status/Pending`, config);
         const listPending = resPending.data || [];
@@ -204,9 +174,9 @@ const AdminDashboard = () => {
         const resActive = await axios.get(`${API_BASE}/user/by-status/active`, config);
         const listActive = resActive.data || [];
         setAllUsers([...listPending, ...listActive]);
-      } catch (errUser) { console.error("Lỗi tải User:", errUser); }
+      } catch (errUser) {}
 
-      // Load Reports
+      // 2. Load Reports & Tasks (Logic ghép tên TNV)
       try {
         const [resPending, resAccepted, resInProcess, resDone] = await Promise.all([
             axios.get(`${API_BASE}/reports/status/Pending`, config).catch(() => ({ data: [] })),
@@ -221,11 +191,49 @@ const AdminDashboard = () => {
             ...(resInProcess.data || []),
             ...(resDone.data || [])
         ];
-        setReports(allReports.sort((a, b) => (b.id || 0) - (a.id || 0)));
 
-        // Load Cancel Requests từ list Reports
+        // [QUAN TRỌNG] Lấy thông tin Task -> Volunteer ID -> Gọi API User -> Tên TNV
+        const reportsWithTask = await Promise.all(allReports.map(async (rpt) => {
+            try {
+                let volName = "---";
+                let tId = null;
+
+                // Chỉ tìm task nếu đơn không phải là mới (Pending)
+                if(rpt.status !== 'Pending' && rpt.status !== 'pending') {
+                    // Bước 1: Lấy Task từ Report ID
+                    const taskRes = await axios.get(`${API_BASE}/reports/tasks/gettask/${rpt.id}`, config).catch(()=>null);
+                    
+                    if(taskRes && taskRes.data) {
+                        const taskData = Array.isArray(taskRes.data) ? taskRes.data[0] : taskRes.data;
+                        tId = taskData?.id;
+                        const volId = taskData?.volunteerId || taskData?.VolunteerId;
+
+                        // Bước 2: Nếu có VolunteerId, gọi API User để lấy tên thật
+                        if (volId && volId !== "00000000-0000-0000-0000-000000000000") {
+                            try {
+                                const userRes = await axios.get(`${API_BASE}/user/${volId}/get-user-by-id`, config);
+                                const userData = userRes.data.user || userRes.data;
+                                if (userData && userData.fullName) {
+                                    volName = userData.fullName;
+                                } else {
+                                    volName = "TNV (Ẩn danh)";
+                                }
+                            } catch (e) {
+                                volName = "Lỗi lấy tên TNV";
+                            }
+                        } else {
+                            volName = "Chưa phân công";
+                        }
+                    }
+                }
+                return { ...rpt, volunteerName: volName, taskId: tId };
+            } catch (e) { return { ...rpt, volunteerName: "---" }; }
+        }));
+
+        setReports(reportsWithTask.sort((a, b) => (b.id || 0) - (a.id || 0)));
+
+        // Load Cancel Requests (Tận dụng lại logic cũ)
         const activeReports = allReports.filter(r => r.status === 'Accepted' || r.status === 'InProcess' || r.status === 'accepted' || r.status === 'inprocess');
-        
         const taskPromises = activeReports.map(async (report) => {
             try {
                 const res = await axios.get(`${API_BASE}/reports/tasks/gettask/${report.id}`, config);
@@ -233,7 +241,6 @@ const AdminDashboard = () => {
                 return null;
             } catch (e) { return null; }
         });
-
         const tasks = await Promise.all(taskPromises);
         const requests = tasks.filter(t => {
             if (!t) return false;
@@ -247,7 +254,7 @@ const AdminDashboard = () => {
     } catch (error) { console.error("Lỗi chung:", error); }
   };
 
-  // --- CÁC HÀM XỬ LÝ HÀNH ĐỘNG ---
+  // --- CÁC HÀM XỬ LÝ HÀNH ĐỘNG (GIỮ NGUYÊN) ---
   const handleApproveVolunteer = async (user) => {
     if (!window.confirm(`Duyệt thành viên ${user.fullName}?`)) return;
     setIsLoading(true);
@@ -304,7 +311,7 @@ const AdminDashboard = () => {
   }
 
   const handleLogout = () => {
-    localStorage.clear(); // Xóa user, token, tab history
+    localStorage.clear(); 
     navigate("/admin-login");
   };
 
@@ -313,7 +320,6 @@ const AdminDashboard = () => {
       setUnreadCount(0);
   };
 
-  // --- RENDER TABLE HELPER ---
   const renderTable = (data, columns, renderRow) => (
     <div className="table-container">
       <table className="admin-table">
@@ -333,7 +339,6 @@ const AdminDashboard = () => {
         <div style={{display: 'flex', alignItems: 'center', gap: '20px'}}>
             <h2>🛡️ Admin Control Center</h2>
             
-            {/* --- KHU VỰC THÔNG BÁO (NOTIFICATION) --- */}
             <div className="notification-container" ref={dropdownRef}>
                 <div className="bell-icon-wrapper" onClick={handleBellClick}>
                     <FaRegBell size={24} color="white" />
@@ -381,7 +386,6 @@ const AdminDashboard = () => {
       </header>
 
       <div className="dashboard-container" style={{marginTop: '60px'}}>
-        {/* === TAB 1: QUẢN LÝ ĐƠN === */}
         {activeTab === "requests" && (
           <div className="requests-section">
             <div className="section-block info-block">
@@ -420,21 +424,50 @@ const AdminDashboard = () => {
                      <td style={{maxWidth: '200px'}}>{rpt.address}</td>
                      <td><span className={`badge status-${rpt.status}`} style={{background: rpt.status === 'pending' ? '#fef3c7' : rpt.status === 'accepted' ? '#d1fae5' : '#f3f4f6', color: rpt.status === 'pending' ? '#b45309' : rpt.status === 'accepted' ? '#065f46' : '#374151'}}>{rpt.status}</span></td>
                      <td style={{ minWidth: '160px' }}>
-                        {(rpt.status === 'pending' || rpt.status === 'Pending') && (
-                            <div style={{display: 'flex', gap: '8px', justifyContent: 'center'}}>
-                                <button className="btn-action-approve" onClick={() => handleApproveReport(rpt)} disabled={isLoading} style={{background: '#16a34a', color: 'white', padding: '8px 16px', borderRadius: '6px', border:'none', cursor:'pointer', fontWeight:'600'}}>Duyệt</button>
-                                <button className="btn-action-reject" onClick={() => handleRejectReport(rpt)} disabled={isLoading} style={{background: '#dc2626', color: 'white', padding: '8px 16px', borderRadius: '6px', border:'none', cursor:'pointer', fontWeight:'600'}}>Từ chối</button>
-                            </div>
-                        )}
-                        {(rpt.status === 'accepted' || rpt.status === 'Accepted') && <div style={{textAlign: 'center'}}><span style={{color: 'green', fontWeight: 'bold'}}>✅ Đã duyệt</span></div>}
+                       {(rpt.status === 'pending' || rpt.status === 'Pending') && (
+                           <div style={{display: 'flex', gap: '8px', justifyContent: 'center'}}>
+                               <button className="btn-action-approve" onClick={() => handleApproveReport(rpt)} disabled={isLoading} style={{background: '#16a34a', color: 'white', padding: '8px 16px', borderRadius: '6px', border:'none', cursor:'pointer', fontWeight:'600'}}>Duyệt</button>
+                               <button className="btn-action-reject" onClick={() => handleRejectReport(rpt)} disabled={isLoading} style={{background: '#dc2626', color: 'white', padding: '8px 16px', borderRadius: '6px', border:'none', cursor:'pointer', fontWeight:'600'}}>Từ chối</button>
+                           </div>
+                       )}
+                       {(rpt.status === 'accepted' || rpt.status === 'Accepted') && <div style={{textAlign: 'center'}}><span style={{color: 'green', fontWeight: 'bold'}}>✅ Đã duyệt</span></div>}
                      </td>
                    </tr>
                ))}
             </div>
+
+            {/* --- BẢNG TIẾN ĐỘ REAL-TIME (CẬP NHẬT TÊN TNV) --- */}
+            <div className="section-block" style={{marginTop: '30px', borderTop: '2px solid #ddd', paddingTop: '20px'}}>
+               <h3>🚀 Tiến Độ Các Đơn Cứu Trợ (Real-time)</h3>
+               {renderTable(reports, ["Người gửi", "Mức độ / Chi tiết", "Địa chỉ", "Trạng thái", "Tên TNV Hỗ Trợ", "Hành động"], (rpt, idx) => (
+                   <tr key={`progress-${rpt.id || idx}`}>
+                     <td><strong>{rpt.name}</strong><br/><small>{rpt.phone}</small></td>
+                     <td><span className="badge" style={{background: '#f0f9ff', color: '#0369a1'}}>{rpt.level}</span><br/><span style={{fontSize: '0.85rem', color: '#666'}}>{rpt.details}</span></td>
+                     <td style={{maxWidth: '200px'}}>{rpt.address}</td>
+                     <td>
+                        <span className={`badge status-${rpt.status}`} style={{
+                            background: rpt.status === 'inprocess' || rpt.status === 'InProcess' ? '#dcfce7' : '#f3f4f6', 
+                            color: rpt.status === 'inprocess' || rpt.status === 'InProcess' ? '#166534' : '#333'
+                        }}>
+                            {rpt.status === 'inprocess' || rpt.status === 'InProcess' ? 'Đang cứu hộ' : rpt.status}
+                        </span>
+                     </td>
+                     {/* CỘT TÊN TNV ĐÃ ĐƯỢC LẤY TỪ API USER */}
+                     <td><strong style={{color: '#0369a1'}}>{rpt.volunteerName}</strong></td>
+                     <td>
+                        {(rpt.status === 'pending' || rpt.status === 'Pending') ? (
+                            <button className="btn-small" style={{background: '#16a34a', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer'}} onClick={() => handleApproveReport(rpt)}>Duyệt ngay</button>
+                        ) : (
+                            <span style={{color: '#999', fontSize: '0.85rem'}}>Đang xử lý</span>
+                        )}
+                     </td>
+                   </tr>
+               ))}
+            </div>
+
           </div>
         )}
 
-        {/* === TAB 2: QUẢN LÝ USER === */}
         {activeTab === "users" && (
           <div className="section-block">
             <h3>👥 Danh sách toàn bộ User</h3>
