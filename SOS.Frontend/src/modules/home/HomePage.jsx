@@ -105,6 +105,7 @@ const HomePage = () => {
   const handleLogout = () => {
     localStorage.removeItem("currentUser");
     localStorage.removeItem("accessToken");
+    localStorage.removeItem("MAP_NOTIFICATIONS");
     setUser(null); 
     navigate("/");
   };

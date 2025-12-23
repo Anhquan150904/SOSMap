@@ -70,13 +70,42 @@ namespace Sos.Application.Services
                 .Group(groupName)
                 .SendAsync("ReportStatusChanged", payload);
         }
-
+        public Task NotifyReportStatusChangedtoReject(Guid userId, object payload)
+        {
+            var groupName = $"user_{userId}";
+            return _hubContext.Clients
+                .Group(groupName)
+                .SendAsync("ReportStatusChangedtoReject", payload);
+        }
+        public Task NotifyReportStatusChangedtoAccept(Guid userId, object payload)
+        {
+            var groupName = $"user_{userId}";
+            return _hubContext.Clients
+                .Group(groupName)
+                .SendAsync("ReportStatusChangedtoAccept", payload);
+        }
+        
         public Task NotifyReportCancel(Guid userId, object payload)
         {
             var groupName = $"user_{userId}";
             return _hubContext.Clients
                 .Group(groupName)
                 .SendAsync("ReportCanceled", payload);
+        }
+
+        public Task NotifyNewSosRequesttoPending(Guid userId, object payload)
+        {
+            var groupName = $"user_{userId}";
+            return _hubContext.Clients
+                .Group(groupName)
+                .SendAsync("NewSosRequesttoPending", payload);
+        }
+        public Task TaskCanceledRejected(Guid volunteerId, object payload)
+        {
+            var groupName = $"volunteer_team_{volunteerId}";
+            return _hubContext.Clients
+                .Group(groupName)
+                .SendAsync("TaskCanceledRejected", payload);
         }
 
     }

@@ -182,10 +182,26 @@ const MapPage = () => {
                 addNotify("🚨 CÓ ĐƠN CỨU TRỢ MỚI!", `${pName} cần giúp: ${pDetails}`, "error");
                 // initMapData(); // Có thể bật lại nếu muốn refresh data
             }
-
-            else if (currentUser.role === 'citizen') {
-                const rId = payload.ReportId || payload.reportId || payload.Id || payload.id || "N/A";
-                addNotify("✅ Đơn cứu trợ đã được gửi", `Đơn #${rId} của bạn đã được ghi nhận và đang chờ xử lý.`, "success");
+        });
+        connection.on("NewSosRequesttoPending", (payload) => {
+            if (currentUser.role === 'citizen') {
+                const pMessage = payload.Message || 'Yêu cầu cứu trợ của bạn đã được ghi nhận và đang chờ đội cứu hộ tiếp nhận.';
+                addNotify(pMessage);
+                // initMapData(); // Có thể bật lại nếu muốn refresh data
+            }
+        });
+        connection.on("ReportStatusChangedtoReject", (payload) => {
+            if (currentUser.role === 'citizen') {
+                const pMessage = payload.Message || '❌ Yêu cầu cứu trợ của bạn đã bị từ chối.';
+                addNotify(pMessage, '', 'error');
+                // initMapData(); // Có thể bật lại nếu muốn refresh data
+            }
+        });
+        connection.on("ReportStatusChangedtoAccept", (payload) => {
+            if (currentUser.role === 'citizen') {
+                const pMessage = payload.Message || '✅ Yêu cầu cứu trợ của bạn đã được chấp nhận.';
+                addNotify(pMessage, '', 'success');
+                // initMapData(); // Có thể bật lại nếu muốn refresh data
             }
         });
 
@@ -211,7 +227,7 @@ const MapPage = () => {
         connection.on("TaskCanceledApproved", (payload) => {
             if (currentUser.role === 'volunteer') {
                 const tId = payload.TaskId || payload.taskId || "N/A";
-                addNotify("✅ Yêu cầu hủy được duyệt", `Nhiệm vụ #${tId} đã hủy thành công.`, "success");
+                addNotify("✅ Yêu cầu hủy được duyệt", `Nhiệm vụ đã hủy thành công.`, "success");
                 initMapData();
             }
         });
@@ -219,7 +235,14 @@ const MapPage = () => {
         connection.on("TaskCanceledRejected", (payload) => {
             if (currentUser.role === 'volunteer') {
                 const tId = payload.TaskId || payload.taskId || "N/A";
-                addNotify("❌ Yêu cầu hủy bị từ chối", `Nhiệm vụ #${tId} vẫn đang tiếp tục.`, "error");
+                addNotify("❌ Yêu cầu hủy bị từ chối", `Nhiệm vụ vẫn đang tiếp tục.`, "error");
+                initMapData();
+            }
+        });
+        connection.on("VerifiedVolunteer", (payload) => {
+            if (currentUser.role === 'volunteer') {
+                const tId = payload.TaskId || payload.taskId || "N/A";
+                addNotify("✅ Yêu cầu trở thành cứu hộ của bạn đã được duyệt", '', "success");
                 initMapData();
             }
         });
