@@ -63,15 +63,15 @@ const AdminDashboard = () => {
     // Nếu Auth OK -> Tải dữ liệu lần đầu
     fetchData();
 
-    // B. CẤU HÌNH SIGNALR
-    // B. CẤU HÌNH SIGNALR
+// B. CẤU HÌNH SIGNALR
     const setupSignalR = async () => {
         if (connectionRef.current) return;
 
+        // 1. Đổi LogLevel thành Information để xem được log kết nối như file test
         const connection = new signalR.HubConnectionBuilder()
             .withUrl(SIGNALR_HUB_URL)
             .withAutomaticReconnect()
-            .configureLogging(signalR.LogLevel.Warning)
+            .configureLogging(signalR.LogLevel.Information) 
             .build();
 
         connectionRef.current = connection;
@@ -88,20 +88,29 @@ const AdminDashboard = () => {
             setUnreadCount(prev => prev + 1);
         };
 
-        // --- LẮNG NGHE SỰ KIỆN ---
+        // --- LẮNG NGHE SỰ KIỆN (EVENT LISTENERS) ---
 
-        // 2. [ĐÃ SỬA] TaskAccepted: Lấy tên từ ID
+        // [QUAN TRỌNG - MỚI THÊM] 1. ReportCreated: Khi dân gửi đơn
+        connection.on("ReportCreated", (payload) => {
+            console.log("📢 [Socket] ReportCreated:", payload);
+            const rName = payload.name || payload.Name || "Người dân";
+            const rPhone = payload.phone || payload.Phone || "";
+            
+            addNotification("📢 Có đơn cứu trợ mới!", `Từ: ${rName} - ${rPhone}`, "info");
+            
+            // Gọi lại API để danh sách đơn tự động cập nhật ngay lập tức
+            fetchData(); 
+        });
+
+        // 2. TaskAccepted: Khi TNV nhận đơn
         connection.on("TaskAccepted", async (payload) => {
-            // Lấy ID từ payload (chấp nhận cả hoa/thường)
+            console.log("🟢 [Socket] TaskAccepted:", payload);
             const volId = payload.volunteerId || payload.VolunteerId;
             let volName = "TNV (Chưa rõ tên)";
 
-            // Nếu có ID, gọi API lấy tên chi tiết
             if (volId) {
                 try {
-                    // Gọi API lấy thông tin user
                     const res = await axios.get(`${API_BASE}/user/${volId}/get-user-by-id`);
-                    // Xử lý dữ liệu trả về (User có thể nằm trong res.data hoặc res.data.user)
                     const userData = res.data.user || res.data;
                     if (userData && userData.fullName) {
                         volName = userData.fullName;
@@ -111,43 +120,50 @@ const AdminDashboard = () => {
                 }
             }
 
-            // Hiện thông báo với tên thật
             addNotification("🟢 Đã có TNV nhận đơn", `TNV: ${volName} đã nhận nhiệm vụ.`, "success");
             fetchData();
         });
 
-        // 3. NotifyAdminsTaskCompleted
+        // 3. NotifyAdminsTaskCompleted: Khi nhiệm vụ xong
         connection.on("NotifyAdminsTaskCompleted", payload => {
+            console.log("✅ [Socket] TaskCompleted:", payload);
             const rId = payload.reportId || payload.ReportId;
             addNotification("✅ Nhiệm vụ hoàn thành", `Report ID: ${rId} đã xong.`, "success");
             fetchData();
         });
 
-        // 4. VolunteerRequestTaskCanceled
-        connection.on("VolunteerRequestTaskCanceled", async (payload) => {
-            // Tương tự, nếu muốn hiện tên người hủy, cũng có thể gọi API ở đây
+        // 4. VolunteerRequestTaskCanceled: Yêu cầu hủy (Cái này bạn đang chạy được)
+        connection.on("VolunteerRequestTaskCanceled", (payload) => {
+            console.log("🚨 [Socket] RequestCancel:", payload);
             const tId = payload.taskId || payload.TaskId;
             const note = payload.note || payload.Note || "Không có lý do";
             addNotification("⚠️ Yêu cầu hủy nhiệm vụ", `Task ID: ${tId}. Lý do: ${note}`, "warning");
             fetchData();
         });
 
-        // 5. TaskCanceledApproved
+        // 5. TaskCanceledApproved: Đã duyệt hủy
         connection.on("TaskCanceledApproved", payload => {
+            console.log("❌ [Socket] CancelApproved:", payload);
             const tId = payload.taskId || payload.TaskId;
             addNotification("❌ Đã duyệt hủy nhiệm vụ", `Task ID: ${tId} đã hủy.`, "info");
             fetchData();
         });
 
-        // KẾT NỐI
+        // KẾT NỐI VÀ JOIN GROUP
         try {
             await connection.start();
-            console.log("✅ SignalR Connected");
+            console.log("✅ SignalR Connected (React)");
+
             const role = currentUser.role ? currentUser.role.toLowerCase() : "admin";
             const status = currentUser.status ? currentUser.status.toLowerCase() : "active";
             const userId = currentUser.id || currentUser.userId;
+
+            console.log(`➡️ Đang Join Group: Role=${role}, ID=${userId}`);
+            
             await connection.invoke("JoinByRoleAndStatus", role, status, userId);
-        } catch (err) { console.error("❌ SignalR Connect Error:", err); }
+        } catch (err) { 
+            console.error("❌ SignalR Connect Error:", err); 
+        }
     };
 
     setupSignalR();

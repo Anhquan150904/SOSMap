@@ -80,6 +80,10 @@ namespace Sos.Application.Services
 
             user.Status = "active";
             await _userRepo.UpdateAsync(user);
+            await _notification.NotifyVerifiedVolunteer(userId, new
+            {
+                Message = "Yêu cầu trở thành tình nguyện viên của bạn đã được chấp nhận."
+            });
         }
         public async Task AcceptSOSReport(Guid reportId)
         {
