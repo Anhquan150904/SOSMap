@@ -189,25 +189,16 @@ const MapPage = () => {
             }
         });
 
-        connection.on("ReportStatusChanged", async (payload) => {
-            const rId = payload.ReportId || payload.reportId || payload.Id || payload.id || "N/A";
-            const rStatus = payload.Status || payload.status || "";
-            const volId = payload.VolunteerId || payload.volunteerId;
+        connection.on("ReportStatusChanged", async () => {
             const statusLower = String(rStatus).toLowerCase();
 
-            if (statusLower === "accepted" || statusLower === "inprocess" || statusLower === "in_process") {
-                let volName = "Một Tình nguyện viên";
-                if (volId && volId !== "00000000-0000-0000-0000-000000000000") {
-                    try {
-                        const res = await axios.get(`${API_BASE}/user/${volId}/get-user-by-id`);
-                        const u = res.data.user || res.data;
-                        if (u && u.fullName) volName = u.fullName;
-                    } catch (e) { console.error("Lỗi lấy tên TNV", e); }
-                }
-                addNotify("🟢 Đã có người tiếp nhận", `TNV ${volName} đã nhận đơn của bạn và đang trên đường đến.`, "success");
+            if (statusLower === "accepted" || statusLower === "inprocess" || statusLower === "in_procgress") {
+                addNotify("🟢 Đã có người tiếp nhận", "Đã nhận đơn của bạn và đang trên đường đến.", "success");
+                initMapData();
             } 
             else if (statusLower === "done" || statusLower === "completed") {
-                addNotify("✅ Cứu trợ hoàn thành", `Đơn #${rId} đã xử lý xong.`, "success");
+                addNotify("✅ Cứu trợ hoàn thành", `Đơn đã xử lý xong.`, "success");
+                initMapData();
             }
             initMapData();
         });
