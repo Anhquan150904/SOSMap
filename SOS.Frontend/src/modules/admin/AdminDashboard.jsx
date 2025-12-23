@@ -90,15 +90,6 @@ const AdminDashboard = () => {
 
         // --- LẮNG NGHE SỰ KIỆN ---
 
-        // 1. ReportCreated (Giữ nguyên hoặc fix thêm nếu cần)
-        connection.on("ReportCreated", payload => {
-            // Fix lỗi undefined: Kiểm tra kỹ tên trường (viết hoa/thường)
-            const pName = payload.name || payload.Name || "Người dân";
-            const pPhone = payload.phone || payload.Phone || "SĐT ẩn";
-            addNotification("🆘 Có đơn cứu trợ mới!", `${pName} - ${pPhone}`, "error");
-            fetchData(); 
-        });
-
         // 2. [ĐÃ SỬA] TaskAccepted: Lấy tên từ ID
         connection.on("TaskAccepted", async (payload) => {
             // Lấy ID từ payload (chấp nhận cả hoa/thường)
