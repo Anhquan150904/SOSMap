@@ -34,3 +34,151 @@
     border-radius: 5px;
     border: 1px solid #ddd
 } */
+
+/* --- 1. Container bao quanh icon chuông --- */
+.map-notification-container {
+  position: absolute;
+  top: 20px;
+  right: 20px; /* Căn góc phải */
+  z-index: 2000; /* QUAN TRỌNG: Phải cao hơn z-index của Map (Leaflet ~400-1000) */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* Để dropdown căn phải thẳng hàng với chuông */
+}
+
+/* --- 2. Icon Chuông --- */
+.map-bell-icon {
+  background-color: white;
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.2s, background-color 0.2s;
+  border: 2px solid rgba(0,0,0,0.1);
+}
+
+.map-bell-icon:hover {
+  transform: scale(1.1);
+  background-color: #f8f9fa;
+}
+
+/* --- 3. Chấm đỏ số lượng --- */
+.map-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background-color: #dc2626; /* Màu đỏ */
+  color: white;
+  border-radius: 50%;
+  min-width: 22px;
+  height: 22px;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+  font-weight: bold;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* --- 4. Khung Dropdown (Danh sách thông báo) --- */
+.map-noti-dropdown {
+  position: absolute;
+  top: 55px; /* Cách icon chuông một chút */
+  right: 0;
+  width: 360px;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  border: 1px solid #e5e7eb;
+  overflow: hidden; /* Bo góc */
+  animation: slideDown 0.2s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- 5. Header của Dropdown --- */
+.map-noti-header {
+  padding: 12px 15px;
+  background-color: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 700;
+  color: #334155;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.map-noti-header button {
+  font-size: 0.8rem;
+  color: #dc2626;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* --- 6. Body (Phần cuộn danh sách) --- */
+.map-noti-body {
+  max-height: 400px;
+  overflow-y: auto;
+  background-color: #fff;
+}
+
+/* Tùy chỉnh thanh cuộn cho đẹp */
+.map-noti-body::-webkit-scrollbar {
+  width: 6px;
+}
+.map-noti-body::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 3px;
+}
+
+/* --- 7. Từng mục thông báo --- */
+.map-noti-item {
+  padding: 14px 15px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.9rem;
+  color: #475569;
+  transition: background-color 0.1s;
+  position: relative;
+}
+
+.map-noti-item:last-child {
+  border-bottom: none;
+}
+
+.map-noti-item:hover {
+  background-color: #f8fafc;
+}
+
+/* Màu sắc phân loại bên trái */
+.map-noti-item.error { border-left: 4px solid #ef4444; background-color: #fef2f2; }
+.map-noti-item.success { border-left: 4px solid #22c55e; background-color: #f0fdf4; }
+.map-noti-item.info { border-left: 4px solid #3b82f6; background-color: #eff6ff; }
+
+/* Styling nội dung text */
+.map-noti-item strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #1e293b;
+}
+
+.map-noti-item small {
+  float: right;
+  color: #94a3b8;
+  font-weight: normal;
+  font-size: 0.75rem;
+}
